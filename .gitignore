@@ -1,0 +1,14 @@
+# Source build outputs
+open-source/**/bin/
+open-source/**/obj/
+open-source/.vs/
+
+# Portable runtime data generated after launch
+portable-exe/maFiles/*
+!portable-exe/maFiles/README.txt
+
+# Common local artifacts
+*.zip
+*.7z
+*.tmp
+*.log
