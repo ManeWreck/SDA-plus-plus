@@ -43,7 +43,7 @@ Compared to the original SDA:
 
 ## Download
 
-Download the latest portable version from [GitHub Releases](https://github.com/ManeWreck/SDApp-GitHub-Publish/releases).
+Download the latest portable version from [GitHub Releases](https://github.com/ManeWreck/SDA-plus-plus/releases).
 
 Current release asset:
 

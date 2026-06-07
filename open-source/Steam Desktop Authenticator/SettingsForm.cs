@@ -914,6 +914,7 @@ namespace Steam_Desktop_Authenticator
             await RunCloudActionAsync(Localizer.Choose("Pulling from cloud...", "Загрузка из облака..."), async () =>
             {
                 await UseCloudProvidersAsync((provider, credentialsProvider) => cloudSyncService.PullAsync(provider, chkSyncStoredCredentials.Checked, credentialsProvider));
+                manifest = Manifest.GetManifest(true);
                 UpdateCloudLastSync("pull", true);
                 lblCloudStatus.Text = Localizer.Choose("Pull completed. Close Settings to reload accounts.", "Загрузка завершена. Закройте настройки, чтобы обновить аккаунты.");
             }, "pull");
@@ -1096,6 +1097,7 @@ namespace Steam_Desktop_Authenticator
 
         private void UpdateCloudLastSync(string action, bool success)
         {
+            manifest = Manifest.GetManifest(true);
             manifest.WebDavLastSyncAction = action ?? string.Empty;
             manifest.WebDavLastSyncSuccess = success;
             manifest.WebDavLastSyncUtc = DateTime.UtcNow;
