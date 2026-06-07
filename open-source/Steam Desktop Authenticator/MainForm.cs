@@ -40,6 +40,7 @@ namespace Steam_Desktop_Authenticator
         private readonly Button btnNavAccount = new Button();
         private readonly LinkLabel lblFooterKofi = new LinkLabel();
         private readonly ToolStripMenuItem menuManageCredentials = new ToolStripMenuItem();
+        private readonly ToolStripMenuItem menuAutoLoginAllAccounts = new ToolStripMenuItem();
 
         private const int WM_HOTKEY = 0x0312;
         private const uint MOD_ALT = 0x0001;
@@ -60,6 +61,7 @@ namespace Steam_Desktop_Authenticator
         private bool suppressQrToggleEvents = false;
         private int timeoutBarValue = 0;
         private int timeoutBarMax = 30;
+        private bool startupBatchAutoLoginAttempted = false;
 
         // Forms
         private TradePopupForm popupFrm = new TradePopupForm();
@@ -76,7 +78,9 @@ namespace Steam_Desktop_Authenticator
             Icon = Branding.LoadAppIcon();
             trayIcon.Icon = Icon;
             accountToolStripMenuItem.DropDownItems.Insert(1, menuManageCredentials);
+            accountToolStripMenuItem.DropDownItems.Insert(2, menuAutoLoginAllAccounts);
             menuManageCredentials.Click += menuManageCredentials_Click;
+            menuAutoLoginAllAccounts.Click += menuAutoLoginAllAccounts_Click;
             DoubleBuffered = true;
             BuildModernLayout();
             ModernUi.AttachWindowChrome(this, true, false);
@@ -269,6 +273,7 @@ namespace Steam_Desktop_Authenticator
             menuQuit.Text = Localizer.Choose("Quit", "Выход");
             accountToolStripMenuItem.Text = Localizer.Choose("Account tools", "Инструменты аккаунта");
             menuManageCredentials.Text = Localizer.Choose("Manage login credentials", "Управление логинами");
+            menuAutoLoginAllAccounts.Text = Localizer.Choose("Auto login all accounts", "Автовход для всех аккаунтов");
             btnNavAccount.Text = accountToolStripMenuItem.Text;
             menuLoginAgain.Text = Localizer.Choose("Login again", "Войти заново");
             menuTerminateSessions.Text = Localizer.Choose("Terminate all sessions", "Завершить все сессии");
@@ -473,7 +478,7 @@ namespace Steam_Desktop_Authenticator
 
         // Form event handlers
 
-        private void MainForm_Shown(object sender, EventArgs e)
+        private async void MainForm_Shown(object sender, EventArgs e)
         {
             this.labelVersion.Text = String.Format("{0} v{1}", Branding.AppName, Application.ProductVersion);
             try
@@ -519,6 +524,8 @@ namespace Steam_Desktop_Authenticator
 
             checkForUpdates();
             UpdateSelectedAccountCard();
+
+            await MaybeAutoLoginAllAccountsOnStartupAsync();
 
             if (startSilent)
             {
@@ -726,6 +733,11 @@ namespace Steam_Desktop_Authenticator
             manifest = Manifest.GetManifest(true);
             loadAccountsList();
             ApplyAccountFilter(currentAccount?.AccountName);
+        }
+
+        private void menuAutoLoginAllAccounts_Click(object sender, EventArgs e)
+        {
+            _ = RunAutoLoginForAllAccountsAsync(true, true, Localizer.Choose("Auto login all accounts", "Автовход для всех аккаунтов"));
         }
 
         private async void menuTerminateSessions_Click(object sender, EventArgs e)
@@ -1323,6 +1335,140 @@ namespace Steam_Desktop_Authenticator
 
             lblStatus.Text = originalStatus;
             return result;
+        }
+
+        private async Task MaybeAutoLoginAllAccountsOnStartupAsync()
+        {
+            if (startupBatchAutoLoginAttempted)
+            {
+                return;
+            }
+
+            startupBatchAutoLoginAttempted = true;
+            await RunAutoLoginForAllAccountsAsync(true, false, Localizer.Choose("Auto login", "Автовход"));
+        }
+
+        private async Task RunAutoLoginForAllAccountsAsync(bool allowPrompt, bool initiatedByUser, string operationName)
+        {
+            if (manifest == null || !manifest.AutoLoginForExpiredSessions)
+            {
+                if (initiatedByUser)
+                {
+                    MessageBox.Show(
+                        Localizer.Choose("Auto login for expired sessions is disabled in Settings.", "Автовход для истекших сессий отключен в настройках."),
+                        operationName,
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+
+                return;
+            }
+
+            SteamGuardAccount[] sourceAccounts = allAccounts ?? Array.Empty<SteamGuardAccount>();
+            List<SteamGuardAccount> targets = sourceAccounts.Where(NeedsBatchAutoLogin).ToList();
+            if (targets.Count == 0)
+            {
+                if (initiatedByUser)
+                {
+                    MessageBox.Show(
+                        Localizer.Choose("There are no accounts that need automatic login right now.", "Сейчас нет аккаунтов, которым нужен автоматический вход."),
+                        operationName,
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+
+                return;
+            }
+
+            bool requiresCredentialRestore = targets.Any(account =>
+                account?.Session != null
+                && account.Session.IsRefreshTokenExpired()
+                && storedCredentialLoginService.HasStoredCredentials(account.Session.SteamID, account.AccountName));
+
+            if (allowPrompt && manifest.AskBeforeAutoLogin && requiresCredentialRestore)
+            {
+                DialogResult approval = MessageBox.Show(
+                    Localizer.Choose(
+                        $"Saved credentials were found for {targets.Count} account(s).\n\nSDA++ can try to restore all expired sessions automatically now.\n\nContinue?",
+                        $"Найдены сохраненные логины для {targets.Count} аккаунтов.\n\nSDA++ может сейчас автоматически восстановить все истекшие сессии.\n\nПродолжить?"),
+                    operationName,
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+                if (approval != DialogResult.Yes)
+                {
+                    return;
+                }
+            }
+
+            string originalStatus = lblStatus.Text;
+            string preferredAccountName = currentAccount?.AccountName;
+            int recoveredCount = 0;
+            int failedCount = 0;
+            List<string> failedAccounts = new List<string>();
+
+            try
+            {
+                foreach (SteamGuardAccount account in targets)
+                {
+                    lblStatus.Text = Localizer.Choose(
+                        $"Restoring {account.AccountName}...",
+                        $"Восстановление {account.AccountName}...");
+                    bool ready = await EnsureAccountSessionReadyAsync(account, operationName, false);
+                    if (ready)
+                    {
+                        recoveredCount++;
+                    }
+                    else
+                    {
+                        failedCount++;
+                        failedAccounts.Add(account.AccountName);
+                    }
+                }
+            }
+            finally
+            {
+                lblStatus.Text = originalStatus;
+                manifest = Manifest.GetManifest(true);
+                loadAccountsList();
+                ApplyAccountFilter(preferredAccountName);
+                UpdateSelectedAccountCard();
+            }
+
+            if (initiatedByUser || recoveredCount > 0 || failedCount > 0)
+            {
+                string message = Localizer.Choose(
+                    $"Recovered: {recoveredCount}\nFailed: {failedCount}",
+                    $"Восстановлено: {recoveredCount}\nНе удалось: {failedCount}");
+
+                if (failedAccounts.Count > 0)
+                {
+                    message += Localizer.Choose(
+                        "\n\nAccounts that still need manual login:\n",
+                        "\n\nАккаунты, которым все еще нужен ручной вход:\n")
+                        + string.Join("\n", failedAccounts);
+                }
+
+                MessageBox.Show(
+                    message,
+                    operationName,
+                    MessageBoxButtons.OK,
+                    failedCount > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            }
+        }
+
+        private bool NeedsBatchAutoLogin(SteamGuardAccount account)
+        {
+            if (account?.Session == null)
+            {
+                return false;
+            }
+
+            if (account.Session.IsRefreshTokenExpired())
+            {
+                return storedCredentialLoginService.HasStoredCredentials(account.Session.SteamID, account.AccountName);
+            }
+
+            return account.Session.IsAccessTokenExpired();
         }
 
         /// <summary>
