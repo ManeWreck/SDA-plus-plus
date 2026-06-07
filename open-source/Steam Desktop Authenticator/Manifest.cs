@@ -173,6 +173,12 @@ namespace Steam_Desktop_Authenticator
             // If there's no manifest, throw exception
             if (!File.Exists(manifestFile))
             {
+                if (!DirectoryContainsAccountFiles(maDir))
+                {
+                    _manifest = GenerateNewManifest(false);
+                    return _manifest;
+                }
+
                 throw new ManifestParseException();
             }
 
@@ -287,6 +293,16 @@ namespace Steam_Desktop_Authenticator
             }
 
             return null;
+        }
+
+        private static bool DirectoryContainsAccountFiles(string maDir)
+        {
+            if (!Directory.Exists(maDir))
+            {
+                return false;
+            }
+
+            return Directory.EnumerateFiles(maDir, "*.maFile", SearchOption.TopDirectoryOnly).Any();
         }
 
         public class IncorrectPassKeyException : Exception { }
