@@ -63,6 +63,17 @@ The `portable-exe/maFiles` folder is intentionally empty except for a placeholde
 2. Run `SDA++.exe`.
 3. On first launch, configure a fresh profile. The app will create its own local `maFiles` data.
 
+## Security note
+
+This executable is currently unsigned, so Windows may show an `Unknown publisher` warning on first launch.
+
+You can either:
+
+- build the app from source using the .NET 8 SDK
+- or download the portable build from GitHub Releases
+
+SHA-256 checksums are provided for release files so you can verify the downloaded archive before running it.
+
 ## Build from source
 
 1. Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
