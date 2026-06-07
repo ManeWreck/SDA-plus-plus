@@ -1,11 +1,11 @@
-# SDA++ Clean Publish
+# SDA++
 
 <p align="center">
-  <img src="./icon.png" width="96" alt="SDA++ icon" />
+  <img src="./icon.png" width="128" alt="SDA++ icon" />
 </p>
 
 <p align="center">
-  Clean public package of a custom <b>SDA++</b> fork with full source code and a ready-to-run Windows build.
+  A desktop Steam Guard authenticator focused on modern account management, QR login, cloud synchronization, and session recovery.
 </p>
 
 <p align="center">
@@ -14,34 +14,71 @@
   <img alt="Build" src="https://img.shields.io/badge/Build-Release-1f7a4f" />
 </p>
 
-## What is included
+Originally based on Steam Desktop Authenticator.  
+Now developed as the independent **SDA++** project.
 
-- `open-source/` contains the cleaned source tree for the project.
-- `portable-exe/` contains a clean portable build that can be launched immediately on Windows.
-- All personal runtime data was removed before packaging.
+## What's new in SDA++
 
-## Highlights
+Compared to the original SDA:
 
-- QR login and session recovery utilities
+- QR-code login from desktop screenshots
+- Hotkey-based account switching
+- Automatic session recovery
+- Cloud synchronization improvements
+- Separate credential vault support
+- Enhanced account management tools
+- Updated dark UI
+
+## Features
+
+- QR-code login directly from the desktop
+- Automatic account switching with hotkeys
+- Session recovery utilities
 - Saved credentials manager for automatic re-login
-- Separate cloud sync options for `.maFile` data and saved credentials
-- WebDAV pull fallback through `PROPFIND` when cloud `manifest.json` is empty or damaged
-- Fixed Russian localization in settings and popup windows
-- Clean dark-theme WinForms UI based on the current SDA++ fork
+- Separate cloud synchronization for `.maFile` data and saved credentials
+- WebDAV cloud storage support
+- Improved Russian localization
+- Updated dark-themed interface
+- Portable build with no installation required
 
-## Privacy cleanup
+## Download
 
-This package was prepared for public publishing and does **not** include:
+Download the latest portable version from [GitHub Releases](https://github.com/ManeWreck/SDApp-GitHub-Publish/releases).
 
-- personal `maFiles`
-- WebDAV credentials or cloud secrets
-- cloud sync cache and backup snapshots
-- saved login/password vault files
-- runtime `manifest.json` from the working profile
+Current release asset:
 
-The `portable-exe/maFiles` folder is intentionally empty except for a placeholder note.
+- `SDA++-portable.zip`
 
-## Repository layout
+## Quick Start
+
+1. Download `SDA++-portable.zip` from the Releases section.
+2. Extract the archive.
+3. Run `SDA++.exe`.
+4. Create or import your Steam Guard account.
+5. Configure cloud synchronization if desired.
+
+## Security
+
+SDA++ stores Steam Guard data locally.
+
+This executable is currently unsigned, so Windows may show an `Unknown publisher` warning on first launch.
+
+The public release package does not contain:
+
+- personal Steam Guard files (`.maFile`)
+- saved account credentials
+- cloud synchronization credentials
+- backup archives
+- user-generated runtime data
+
+Always keep encrypted backups of your Steam Guard files.
+
+Release checksum:
+
+- `SDA++-portable.zip`
+  `SHA-256: 064F95DE9FE7354008D92F6B715B629F5BC53FD1DE45217C2352C00547D49178`
+
+## Repository Layout
 
 ```text
 .
@@ -57,34 +94,26 @@ The `portable-exe/maFiles` folder is intentionally empty except for a placeholde
 `-- README.md
 ```
 
-## Quick start
+## Building From Source
 
-1. Open `portable-exe/`.
-2. Run `SDA++.exe`.
-3. On first launch, configure a fresh profile. The app will create its own local `maFiles` data.
+Requirements:
 
-## Security note
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Visual Studio 2022 or another compatible .NET build environment
 
-This executable is currently unsigned, so Windows may show an `Unknown publisher` warning on first launch.
+Build:
 
-You can either:
+```powershell
+dotnet build .\open-source\SteamDesktopAuthenticator.sln -c Release
+```
 
-- build the app from source using the .NET 8 SDK
-- or download the portable build from GitHub Releases
+## Disclaimer
 
-SHA-256 checksums are provided for release files so you can verify the downloaded archive before running it.
+SDA++ is an unofficial Steam Guard desktop application inspired by the original Steam Desktop Authenticator project and is not affiliated with Valve or Steam.
 
-## Build from source
-
-1. Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
-2. Open `open-source/SteamDesktopAuthenticator.sln`.
-3. Build the `Release` configuration.
-
-## Important note
-
-This is an unofficial community fork of Steam Desktop Authenticator and is **not** affiliated with Steam. Use it carefully, keep secure backups, and do not publish generated runtime data from your own installation.
+Use it at your own risk and always keep secure backups of your authentication files.
 
 ## Credits
 
-- Original Steam Desktop Authenticator project by community contributors
-- This package preserves the customized SDA++ fork and publishes it in a clean, shareable form
+- Based on Steam Desktop Authenticator
+- Extended and developed as the independent SDA++ project
