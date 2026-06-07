@@ -14,6 +14,8 @@
   <img alt="Build" src="https://img.shields.io/badge/Build-Release-1f7a4f" />
 </p>
 
+![Selected account](./docs/selected-account.png)
+
 Originally based on Steam Desktop Authenticator.  
 Now developed as the independent **SDA++** project.
 
@@ -40,6 +42,65 @@ Compared to the original SDA:
 - Improved Russian localization
 - Updated dark-themed interface
 - Portable build with no installation required
+
+## Interface Tour
+
+### Steam Guard code
+
+![Steam Guard code](./docs/steam-guard-code.png)
+
+Shows the current rotating Steam Guard code and the progress bar until the next refresh.
+
+### Selected account
+
+![Selected account](./docs/selected-account.png)
+
+Displays the current account status, session health, and quick actions for confirmations, re-login, and ending sessions.
+
+### Pin account
+
+![Pin account](./docs/pin-account.png)
+
+Pinned accounts stay at the top of the account list so frequently used accounts are easier to reach.
+
+### Account tools
+
+![Account tools](./docs/account-tools.png)
+
+The account tools menu gives quick access to re-login, login credential management, session termination, manifest cleanup, and authenticator deactivation.
+
+### Manage login credentials
+
+![Manage login credentials](./docs/manage-login-credentials.png)
+
+This window stores encrypted login credentials used for automatic re-login and batch session recovery.
+
+### Trade confirmations
+
+![Trade confirmations](./docs/trade-confirmations.png)
+
+Lets you approve or revoke trade and market confirmations directly from the desktop client.
+
+### Settings, cloud sync, language, and hotkeys
+
+![Settings, cloud sync, language, and hotkeys](./docs/settings-cloud-hotkeys.png)
+
+Settings includes language selection, confirmation polling, QR hotkeys, account switching shortcuts, WebDAV cloud sync, and separate credential vault sync options.
+
+### Steam QR hotkeys overlay
+
+![Steam QR hotkeys overlay](./docs/steam-qr-hotkeys-overlay.png)
+
+This floating overlay appears when the QR hotkey system changes state. It confirms whether QR hotkeys are enabled or disabled and shows the result of the last hotkey action.
+
+### Account switching hotkeys
+
+SDA++ supports fast account navigation with keyboard shortcuts:
+
+- `Ctrl+Shift+Left` switches to the previous account
+- `Ctrl+Shift+Right` switches to the next account
+
+These shortcuts make it easy to move through multiple accounts without touching the mouse.
 
 ## Download
 
@@ -76,12 +137,13 @@ Always keep encrypted backups of your Steam Guard files.
 Release checksum:
 
 - `SDA++-portable.zip`
-  `SHA-256: 064F95DE9FE7354008D92F6B715B629F5BC53FD1DE45217C2352C00547D49178`
+  `SHA-256: 5033D9DD79C688F4D2AABEA8E9CF5790EC1F4770710D4199741BFB1FABB5CCFD`
 
 ## Repository Layout
 
 ```text
 .
+|-- docs/
 |-- open-source/
 |   |-- SteamDesktopAuthenticator.sln
 |   |-- Steam Desktop Authenticator/
