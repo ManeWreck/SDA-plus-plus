@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SDA++ - Steam Desktop Authenticator fork for Windows</title>
+  <meta name="description" content="SDA++ is a modern Windows fork of Steam Desktop Authenticator for Steam Guard 2FA codes, trade confirmations, QR login, cloud synchronization, and session recovery.">
+  <meta name="keywords" content="SDA++, Steam Desktop Authenticator, Steam Guard, Steam Authenticator, Steam 2FA, trade confirmations, maFile, Windows authenticator">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://manewreck.github.io/SDA-plus-plus/">
+  <meta property="og:title" content="SDA++ - Steam Desktop Authenticator fork">
+  <meta property="og:description" content="A modern Windows desktop Steam Guard authenticator with QR login, cloud sync, session recovery, and trade confirmations.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://manewreck.github.io/SDA-plus-plus/">
+  <meta property="og:image" content="https://manewreck.github.io/SDA-plus-plus/selected-account.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="SDA++ - Steam Desktop Authenticator fork">
+  <meta name="twitter:description" content="Steam Guard desktop authenticator for Windows with QR login, cloud sync, and account recovery tools.">
+  <meta name="twitter:image" content="https://manewreck.github.io/SDA-plus-plus/selected-account.png">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111318;
+      --panel: #181b22;
+      --text: #f4f7fb;
+      --muted: #a9b4c2;
+      --line: #2a303b;
+      --accent: #54c6a0;
+      --accent-strong: #7bd9ff;
+      --button: #2472e8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Segoe UI, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+
+    a {
+      color: var(--accent-strong);
+    }
+
+    .wrap {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      background: rgba(17, 19, 24, 0.92);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      backdrop-filter: blur(14px);
+    }
+
+    nav {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 20px;
+    }
+
+    .brand img {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      font-size: 14px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) minmax(320px, 1.08fr);
+      gap: 44px;
+      align-items: center;
+      padding: 64px 0 48px;
+    }
+
+    h1 {
+      margin: 0 0 18px;
+      font-size: clamp(42px, 7vw, 78px);
+      line-height: 0.95;
+    }
+
+    .lead {
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 19px;
+      max-width: 660px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 26px;
+    }
+
+    .button {
+      display: inline-flex;
+      min-height: 44px;
+      align-items: center;
+      justify-content: center;
+      padding: 0 18px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: white;
+      background: var(--button);
+      text-decoration: none;
+      font-weight: 650;
+    }
+
+    .button.secondary {
+      background: transparent;
+      border-color: var(--line);
+      color: var(--text);
+    }
+
+    .trust {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: #151820;
+    }
+
+    .screen {
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+      box-shadow: 0 26px 70px rgba(0, 0, 0, 0.32);
+    }
+
+    .screen img {
+      width: 100%;
+      display: block;
+    }
+
+    section {
+      padding: 42px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    h2 {
+      margin: 0 0 18px;
+      font-size: 28px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .feature {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .feature h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+
+    .feature p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .gallery figure {
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    .gallery img {
+      width: 100%;
+      display: block;
+    }
+
+    .gallery figcaption {
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 14px;
+      border-top: 1px solid var(--line);
+    }
+
+    .notice {
+      padding: 18px;
+      border-left: 4px solid var(--accent);
+      background: #151d22;
+      color: var(--muted);
+    }
+
+    footer {
+      padding: 32px 0 44px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      font-size: 14px;
+    }
+
+    @media (max-width: 820px) {
+      .hero,
+      .grid,
+      .gallery {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        padding-top: 38px;
+      }
+
+      nav {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 12px 0;
+      }
+
+      .nav-links {
+        flex-wrap: wrap;
+      }
+    }
+  </style>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "SDA++",
+      "applicationCategory": "SecurityApplication",
+      "operatingSystem": "Windows 10, Windows 11",
+      "description": "SDA++ is a modern Windows fork of Steam Desktop Authenticator for Steam Guard two-factor authentication, QR login, trade confirmations, cloud synchronization, and session recovery.",
+      "softwareVersion": "1.0.0",
+      "downloadUrl": "https://github.com/ManeWreck/SDA-plus-plus/releases",
+      "codeRepository": "https://github.com/ManeWreck/SDA-plus-plus",
+      "license": "https://github.com/ManeWreck/SDA-plus-plus/blob/main/LICENSE"
+    }
+  </script>
+</head>
+<body>
+  <header>
+    <nav class="wrap" aria-label="Main navigation">
+      <a class="brand" href="https://manewreck.github.io/SDA-plus-plus/" aria-label="SDA++ home">
+        <img src="https://raw.githubusercontent.com/ManeWreck/SDA-plus-plus/main/icon.png" alt="">
+        <span>SDA++</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#screenshots">Screenshots</a>
+        <a href="https://github.com/ManeWreck/SDA-plus-plus/releases">Download</a>
+        <a href="https://github.com/ManeWreck/SDA-plus-plus">GitHub</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <div class="wrap hero">
+      <div>
+        <h1>SDA++</h1>
+        <p class="lead">A modern Windows fork of Steam Desktop Authenticator for Steam Guard codes, trade confirmations, QR login, cloud synchronization, and session recovery.</p>
+        <div class="actions">
+          <a class="button" href="https://github.com/ManeWreck/SDA-plus-plus/releases">Download portable version</a>
+          <a class="button secondary" href="https://github.com/ManeWreck/SDA-plus-plus">View source on GitHub</a>
+        </div>
+        <div class="trust" aria-label="Project details">
+          <span class="pill">Windows 10+</span>
+          <span class="pill">.NET 8</span>
+          <span class="pill">Portable build</span>
+          <span class="pill">Open source</span>
+        </div>
+      </div>
+      <figure class="screen">
+        <img src="selected-account.png" alt="SDA++ selected Steam account screen with session status and quick actions">
+      </figure>
+    </div>
+
+    <section id="features">
+      <div class="wrap">
+        <h2>Steam Guard desktop features</h2>
+        <div class="grid">
+          <article class="feature">
+            <h3>Steam Guard 2FA codes</h3>
+            <p>View rotating Steam Guard authentication codes and manage multiple accounts from the desktop.</p>
+          </article>
+          <article class="feature">
+            <h3>Trade confirmations</h3>
+            <p>Approve or revoke Steam trade and market confirmations directly from the Windows client.</p>
+          </article>
+          <article class="feature">
+            <h3>QR login and hotkeys</h3>
+            <p>Use QR-code login from desktop screenshots and switch accounts quickly with keyboard shortcuts.</p>
+          </article>
+          <article class="feature">
+            <h3>Session recovery</h3>
+            <p>Recover sessions and re-login accounts with saved encrypted credentials when needed.</p>
+          </article>
+          <article class="feature">
+            <h3>Cloud synchronization</h3>
+            <p>Synchronize encrypted .maFile data and saved credentials using WebDAV cloud storage.</p>
+          </article>
+          <article class="feature">
+            <h3>Portable Windows app</h3>
+            <p>Download the portable release, extract it, and run SDA++.exe without an installer.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="screenshots">
+      <div class="wrap">
+        <h2>Interface screenshots</h2>
+        <div class="gallery">
+          <figure>
+            <img src="steam-guard-code.png" alt="Steam Guard rotating code screen in SDA++">
+            <figcaption>Steam Guard code</figcaption>
+          </figure>
+          <figure>
+            <img src="trade-confirmations.png" alt="Steam trade confirmation list in SDA++">
+            <figcaption>Trade confirmations</figcaption>
+          </figure>
+          <figure>
+            <img src="settings-cloud-hotkeys.png" alt="SDA++ settings for cloud sync, language, and hotkeys">
+            <figcaption>Settings, cloud sync, and hotkeys</figcaption>
+          </figure>
+          <figure>
+            <img src="manage-login-credentials.png" alt="Encrypted saved credentials manager in SDA++">
+            <figcaption>Saved credentials manager</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Security note</h2>
+        <p class="notice">SDA++ is an unofficial Steam Guard desktop application and is not affiliated with Valve or Steam. Keep encrypted backups of your Steam Guard files and only download releases from the official GitHub repository.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      SDA++ is based on Steam Desktop Authenticator and developed as an independent open-source project.
+    </div>
+  </footer>
+</body>
+</html>

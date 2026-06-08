@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://manewreck.github.io/SDA-plus-plus/sitemap.xml

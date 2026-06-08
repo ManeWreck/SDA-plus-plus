@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  A desktop Steam Guard authenticator focused on modern account management, QR login, cloud synchronization, and session recovery.
+  SDA++ is a modern Windows fork of Steam Desktop Authenticator for Steam Guard two-factor authentication, account management, QR login, cloud synchronization, and session recovery.
 </p>
 
 <p align="center">
@@ -105,6 +105,8 @@ These shortcuts make it easy to move through multiple accounts without touching 
 ## Download
 
 Download the latest portable version from [GitHub Releases](https://github.com/ManeWreck/SDA-plus-plus/releases).
+
+Project page: [SDA++ for Steam Guard on GitHub Pages](https://manewreck.github.io/SDA-plus-plus/).
 
 Current release asset:
 
