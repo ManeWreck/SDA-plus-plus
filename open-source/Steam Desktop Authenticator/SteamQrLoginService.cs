@@ -22,6 +22,8 @@ namespace Steam_Desktop_Authenticator
         private const string MobileUserAgent = "okhttp/4.9.2";
         private const string MobileCookie = "mobileClient=android; mobileClientVersion=777777 3.10.3";
         private const string BrowserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
+        private const string TwoFactorManageUrl = "https://store.steampowered.com/twofactor/manage";
+        private const string TwoFactorManageActionUrl = "https://store.steampowered.com/twofactor/manage_action";
         private static readonly Regex QrUrlRegex = new Regex(@"^https?://s\.team/q/(?<version>\d+)/(?<clientId>\d+)(?:\?.*)?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex OpenIdUrlRegex = new Regex(@"^(steam://|https?://steamcommunity\.com/openid/login)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex DeauthorizeSessionRegex = new Regex(@"<form[^>]*id=""deauthorize_devices_form""[\s\S]*?<input[^>]*name=""sessionid""[^>]*value=""(?<sessionid>[^""]+)""", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -80,7 +82,16 @@ namespace Steam_Desktop_Authenticator
             }
 
             SteamWebSession webSession = await CreateAuthenticatedSteamWebSessionAsync(account);
-            string managePage = await DownloadSteamPageAsync(webSession.Cookies, "https://store.steampowered.com/twofactor/manage");
+            string managePage = string.IsNullOrWhiteSpace(webSession.InitialPageHtml)
+                ? await DownloadSteamPageAsync(webSession.Cookies, TwoFactorManageUrl)
+                : webSession.InitialPageHtml;
+            if (!ContainsDeauthorizeForm(managePage))
+            {
+                throw new InvalidOperationException(Localizer.Choose(
+                    "Steam did not open an authenticated Manage Steam Guard page for this account.",
+                    "Steam не открыл авторизованную страницу управления Steam Guard для этого аккаунта."));
+            }
+
             string formSessionId = ExtractDeauthorizeSessionId(managePage) ?? webSession.SessionId;
 
             NameValueCollection body = new NameValueCollection();
@@ -89,16 +100,24 @@ namespace Steam_Desktop_Authenticator
 
             string response = await PostSteamFormAsync(
                 webSession.Cookies,
-                "https://store.steampowered.com/twofactor/manage_action",
+                TwoFactorManageActionUrl,
                 body,
-                "https://store.steampowered.com/twofactor/manage");
+                TwoFactorManageUrl);
 
             if (string.IsNullOrWhiteSpace(response))
             {
+                string fallbackPage = await DownloadSteamPageAsync(webSession.Cookies, TwoFactorManageUrl);
+                if (!ContainsDeauthorizeForm(fallbackPage))
+                {
+                    throw new InvalidOperationException(Localizer.Choose(
+                        "Steam did not confirm the session termination request.",
+                        "Steam не подтвердил запрос на завершение сессий."));
+                }
+
                 return;
             }
 
-            if (response.IndexOf("Sign In", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (IsSignInPage(response))
             {
                 throw new InvalidOperationException(Localizer.Choose("Steam rejected the background session while deauthorizing devices.", "Steam отклонил фоновую сессию при деавторизации устройств."));
             }
@@ -190,6 +209,14 @@ namespace Steam_Desktop_Authenticator
 
         private static async Task<SteamWebSession> CreateAuthenticatedSteamWebSessionAsync(SteamGuardAccount account)
         {
+            await EnsureAccessTokenAsync(account);
+
+            SteamWebSession directSession = await TryCreateDirectWebSessionAsync(account);
+            if (directSession != null)
+            {
+                return directSession;
+            }
+
             string sessionId = GenerateSessionId();
             CookieContainer cookies = new CookieContainer();
 
@@ -205,7 +232,10 @@ namespace Steam_Desktop_Authenticator
                 "https://steamcommunity.com/",
                 "https://steamcommunity.com/");
 
-            FinalizeLoginResponse finalizeResponse = JObject.Parse(finalizeResponseText).ToObject<FinalizeLoginResponse>();
+            JObject finalizeJson = JObject.Parse(finalizeResponseText);
+            FinalizeLoginResponse finalizeResponse =
+                finalizeJson.ToObject<FinalizeLoginResponse>()
+                ?? finalizeJson["response"]?.ToObject<FinalizeLoginResponse>();
             if (finalizeResponse == null || finalizeResponse.TransferInfo == null || finalizeResponse.TransferInfo.Count == 0)
             {
                 throw new InvalidOperationException(Localizer.Choose("Steam returned an unexpected login transfer response.", "Steam вернул неожиданный ответ переноса входа."));
@@ -225,7 +255,39 @@ namespace Steam_Desktop_Authenticator
             }
 
             AddSharedSessionCookies(cookies, sessionId);
-            return new SteamWebSession(cookies, sessionId);
+            string managePage = await DownloadSteamPageAsync(cookies, TwoFactorManageUrl);
+            if (!ContainsDeauthorizeForm(managePage))
+            {
+                throw new InvalidOperationException(Localizer.Choose(
+                    "Steam created a temporary web session, but the Manage Steam Guard page is still not authenticated.",
+                    "Steam создал временную веб-сессию, но страница управления Steam Guard все еще не авторизована."));
+            }
+
+            return new SteamWebSession(cookies, sessionId, managePage);
+        }
+
+        private static async Task<SteamWebSession> TryCreateDirectWebSessionAsync(SteamGuardAccount account)
+        {
+            try
+            {
+                CookieContainer cookies = account.Session.GetCookies();
+                string managePage = await DownloadSteamPageAsync(cookies, TwoFactorManageUrl);
+                if (!ContainsDeauthorizeForm(managePage))
+                {
+                    return null;
+                }
+
+                string sessionId = ExtractSessionIdFromCookies(cookies, TwoFactorManageUrl)
+                    ?? account.Session.SessionID
+                    ?? ExtractDeauthorizeSessionId(managePage)
+                    ?? GenerateSessionId();
+
+                return new SteamWebSession(cookies, sessionId, managePage);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static async Task<string> DownloadSteamPageAsync(CookieContainer cookies, string url)
@@ -271,6 +333,43 @@ namespace Steam_Desktop_Authenticator
             {
                 cookies.Add(new Cookie("sessionid", sessionId, "/", domain));
             }
+        }
+
+        private static string ExtractSessionIdFromCookies(CookieContainer cookies, string url)
+        {
+            try
+            {
+                CookieCollection cookieCollection = cookies.GetCookies(new Uri(url));
+                return cookieCollection["sessionid"]?.Value;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static bool ContainsDeauthorizeForm(string html)
+        {
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                return false;
+            }
+
+            return html.IndexOf("deauthorize_devices_form", StringComparison.OrdinalIgnoreCase) >= 0
+                || html.IndexOf("manage_action", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool IsSignInPage(string html)
+        {
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                return false;
+            }
+
+            return html.IndexOf("sign in", StringComparison.OrdinalIgnoreCase) >= 0
+                || html.IndexOf("signin", StringComparison.OrdinalIgnoreCase) >= 0
+                || html.IndexOf("loginForm", StringComparison.OrdinalIgnoreCase) >= 0
+                || html.IndexOf("/login/home", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static string ExtractDeauthorizeSessionId(string managePageHtml)
@@ -385,15 +484,18 @@ namespace Steam_Desktop_Authenticator
 
         private sealed class SteamWebSession
         {
-            public SteamWebSession(CookieContainer cookies, string sessionId)
+            public SteamWebSession(CookieContainer cookies, string sessionId, string initialPageHtml = null)
             {
                 Cookies = cookies;
                 SessionId = sessionId;
+                InitialPageHtml = initialPageHtml;
             }
 
             public CookieContainer Cookies { get; }
 
             public string SessionId { get; }
+
+            public string InitialPageHtml { get; }
         }
     }
 }

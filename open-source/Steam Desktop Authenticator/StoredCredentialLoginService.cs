@@ -64,7 +64,8 @@ namespace Steam_Desktop_Authenticator
                 {
                     Username = credential.Username,
                     Password = credential.Password,
-                    IsPersistentSession = false,
+                    // Auto-login must restore a persistent mobile session, not a process-scoped one.
+                    IsPersistentSession = true,
                     PlatformType = EAuthTokenPlatformType.k_EAuthTokenPlatformType_MobileApp,
                     ClientOSType = EOSType.Android9,
                     Authenticator = new SilentAccountAuthenticator(account),

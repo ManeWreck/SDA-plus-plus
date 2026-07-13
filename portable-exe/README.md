@@ -1,6 +1,6 @@
 # Portable Build
 
-This folder contains the clean Windows build of SDA++ prepared for public sharing.
+This folder contains the clean Windows build of SDA++ 1.4.0 prepared for public sharing.
 
 ## Contents
 

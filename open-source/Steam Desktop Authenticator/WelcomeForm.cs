@@ -51,7 +51,7 @@ namespace Steam_Desktop_Authenticator
         {
             Text = Branding.FullAppName;
             label1.Text = Localizer.Choose("Welcome to\r\nSDA++", "Добро пожаловать в\r\nSDA++");
-            label2.Text = Localizer.Choose("Choose how you want to start your custom fork:", "Выберите, как запустить ваш кастомный форк:");
+            label2.Text = Localizer.Choose("Choose how you want to get started:", "Выберите, как начать работу:");
             btnImportConfig.Text = Localizer.Choose("Import an existing SDA / SDA++ setup from another folder on this PC.", "Импортировать существующую настройку SDA / SDA++\r\nиз другой папки на этом ПК.");
             btnJustStart.Text = Localizer.Choose("Start fresh with QR-focused tools\r\nand sign into my Steam account(s).", "Начать с нуля с упором на QR-инструменты\r\nи войти в мои аккаунты Steam.");
         }

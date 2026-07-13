@@ -38,9 +38,11 @@ namespace Steam_Desktop_Authenticator
         private readonly Panel panelTopNav = new Panel();
         private readonly Button btnNavFile = new Button();
         private readonly Button btnNavAccount = new Button();
+        private readonly Button btnAccountMonitoring = new Button();
         private readonly LinkLabel lblFooterKofi = new LinkLabel();
         private readonly ToolStripMenuItem menuManageCredentials = new ToolStripMenuItem();
         private readonly ToolStripMenuItem menuAutoLoginAllAccounts = new ToolStripMenuItem();
+        private readonly ToolStripMenuItem menuAccountMonitoring = new ToolStripMenuItem();
 
         private const int WM_HOTKEY = 0x0312;
         private const uint MOD_ALT = 0x0001;
@@ -51,6 +53,8 @@ namespace Steam_Desktop_Authenticator
         private const int HOTKEY_SCAN_QR = 2;
         private const int HOTKEY_PREVIOUS_ACCOUNT = 3;
         private const int HOTKEY_NEXT_ACCOUNT = 4;
+        private const int HOTKEY_AUTO_LOGIN_ALL = 5;
+        private const int HOTKEY_CONFIRMATIONS = 6;
 
         private long steamTime = 0;
         private long currentSteamChunk = 0;
@@ -79,8 +83,10 @@ namespace Steam_Desktop_Authenticator
             trayIcon.Icon = Icon;
             accountToolStripMenuItem.DropDownItems.Insert(1, menuManageCredentials);
             accountToolStripMenuItem.DropDownItems.Insert(2, menuAutoLoginAllAccounts);
+            accountToolStripMenuItem.DropDownItems.Insert(3, menuAccountMonitoring);
             menuManageCredentials.Click += menuManageCredentials_Click;
             menuAutoLoginAllAccounts.Click += menuAutoLoginAllAccounts_Click;
+            menuAccountMonitoring.Click += menuAccountMonitoring_Click;
             DoubleBuffered = true;
             BuildModernLayout();
             ModernUi.AttachWindowChrome(this, true, false);
@@ -108,7 +114,7 @@ namespace Steam_Desktop_Authenticator
         {
             int topOffset = ModernUi.HeaderHeight + 8;
 
-            Text = Branding.FullAppName;
+            Text = $"{Branding.FullAppName} v{Application.ProductVersion}";
             ClientSize = new Size(392, 668);
             MinimumSize = new Size(408, 520);
 
@@ -121,11 +127,14 @@ namespace Steam_Desktop_Authenticator
 
             ConfigureNavButton(btnNavFile, 0, 112);
             ConfigureNavButton(btnNavAccount, 122, 146);
+            ConfigureNavButton(btnAccountMonitoring, 278, 88);
             panelTopNav.Controls.Add(btnNavFile);
             panelTopNav.Controls.Add(btnNavAccount);
+            panelTopNav.Controls.Add(btnAccountMonitoring);
 
             panelButtons.Location = new Point(12, topOffset + 40);
             panelButtons.Size = new Size(366, 34);
+            btnAccountMonitoring.Click += menuAccountMonitoring_Click;
             chkEnableQrHotkeys.Location = new Point(16, topOffset + 84);
             chkEnableQrHotkeys.Text = "";
             chkEnableQrHotkeys.ForeColor = Branding.MutedText;
@@ -239,6 +248,7 @@ namespace Steam_Desktop_Authenticator
             btnSteamLogin.Text = "";
             btnScanQrLogin.Text = "";
             btnManageEncryption.Text = "";
+            btnAccountMonitoring.Text = "";
             btnCopy.Text = "";
             groupBox1.Text = "";
             accountToolStripMenuItem.Text = "";
@@ -274,6 +284,7 @@ namespace Steam_Desktop_Authenticator
             accountToolStripMenuItem.Text = Localizer.Choose("Account tools", "Инструменты аккаунта");
             menuManageCredentials.Text = Localizer.Choose("Manage login credentials", "Управление логинами");
             menuAutoLoginAllAccounts.Text = Localizer.Choose("Auto login all accounts", "Автовход для всех аккаунтов");
+            menuAccountMonitoring.Text = Localizer.Choose("Account monitoring", "Мониторинг аккаунтов");
             btnNavAccount.Text = accountToolStripMenuItem.Text;
             menuLoginAgain.Text = Localizer.Choose("Login again", "Войти заново");
             menuTerminateSessions.Text = Localizer.Choose("Terminate all sessions", "Завершить все сессии");
@@ -291,6 +302,7 @@ namespace Steam_Desktop_Authenticator
             btnSteamLogin.Text = Localizer.Choose("Add Account", "Добавить аккаунт");
             btnScanQrLogin.Text = Localizer.Choose("Scan QR", "Скан QR");
             btnManageEncryption.Text = Localizer.Choose("Vault", "Шифрование");
+            btnAccountMonitoring.Text = Localizer.Choose("Monitor", "Монитор");
             btnCopy.Text = Localizer.Choose("Copy", "Копировать");
             ModernUi.ApplyGlassCard(groupBox1, Localizer.Choose("Steam Guard code", "Код Steam Guard"));
             ModernUi.ApplyGlassCard(groupAccount, Localizer.Choose("Selected account", "Выбранный аккаунт"));
@@ -341,7 +353,7 @@ namespace Steam_Desktop_Authenticator
             ModernUi.WrapTextBox(txtAccSearch);
             ModernUi.WrapTextBox(txtLoginToken, 10, 8);
             labelVersion.ForeColor = Branding.MutedText;
-            labelVersion.Font = new Font("Segoe UI", 6.9F, FontStyle.Regular, GraphicsUnit.Point);
+            labelVersion.Font = new Font("Segoe UI Semibold", 8.25F, FontStyle.Regular, GraphicsUnit.Point);
             labelUpdate.LinkColor = Branding.Accent;
             labelUpdate.ActiveLinkColor = Color.White;
             labelUpdate.VisitedLinkColor = Branding.Accent;
@@ -355,6 +367,7 @@ namespace Steam_Desktop_Authenticator
             lblStatus.ForeColor = Branding.MutedText;
             btnNavFile.ForeColor = Branding.MutedText;
             btnNavAccount.ForeColor = Branding.MutedText;
+            btnAccountMonitoring.ForeColor = Branding.MutedText;
 
             ConfigureTrayMenuTheme();
         }
@@ -481,6 +494,7 @@ namespace Steam_Desktop_Authenticator
         private async void MainForm_Shown(object sender, EventArgs e)
         {
             this.labelVersion.Text = String.Format("{0} v{1}", Branding.AppName, Application.ProductVersion);
+            Text = $"{Branding.FullAppName} v{Application.ProductVersion}";
             try
             {
                 this.manifest = Manifest.GetManifest();
@@ -565,16 +579,40 @@ namespace Steam_Desktop_Authenticator
             this.loadAccountsList();
         }
 
-        private void btnTradeConfirmations_Click(object sender, EventArgs e)
+        private async void btnTradeConfirmations_Click(object sender, EventArgs e)
         {
-            if (currentAccount == null) return;
+            await OpenAllConfirmationsAsync();
+        }
 
-            string oText = btnTradeConfirmations.Text;
-                btnTradeConfirmations.Text = Localizer.Choose("Loading...", "Загрузка...");
-            btnTradeConfirmations.Text = oText;
+        private async Task OpenAllConfirmationsAsync()
+        {
+            SteamGuardAccount[] accounts = allAccounts ?? Array.Empty<SteamGuardAccount>();
+            if (accounts.Length == 0)
+            {
+                return;
+            }
 
-            ConfirmationFormWeb confirms = new ConfirmationFormWeb(currentAccount);
-            confirms.Show();
+            string originalText = btnTradeConfirmations.Text;
+            btnTradeConfirmations.Enabled = false;
+            btnTradeConfirmations.Text = Localizer.Choose("Loading...", "Загрузка...");
+            try
+            {
+                foreach (SteamGuardAccount account in accounts)
+                {
+                    await EnsureAccountSessionReadyAsync(
+                        account,
+                        Localizer.Choose("Confirmations", "Подтверждения"),
+                        false);
+                }
+
+                ConfirmationFormWeb confirms = new ConfirmationFormWeb(accounts);
+                confirms.Show(this);
+            }
+            finally
+            {
+                btnTradeConfirmations.Text = originalText;
+                btnTradeConfirmations.Enabled = true;
+            }
         }
 
         private void btnManageEncryption_Click(object sender, EventArgs e)
@@ -738,6 +776,11 @@ namespace Steam_Desktop_Authenticator
         private void menuAutoLoginAllAccounts_Click(object sender, EventArgs e)
         {
             _ = RunAutoLoginForAllAccountsAsync(true, true, Localizer.Choose("Auto login all accounts", "Автовход для всех аккаунтов"));
+        }
+
+        private void menuAccountMonitoring_Click(object sender, EventArgs e)
+        {
+            new AccountMonitoringForm(allAccounts ?? Array.Empty<SteamGuardAccount>()).Show(this);
         }
 
         private async void menuTerminateSessions_Click(object sender, EventArgs e)
@@ -1003,7 +1046,7 @@ namespace Steam_Desktop_Authenticator
                 return; //Only one thread may access this critical section at once. Mutex is a bad choice here because it'll cause a pileup of threads.
             }
 
-            List<Confirmation> confs = new List<Confirmation>();
+            List<TradePopupForm.PendingConfirmation> confs = new List<TradePopupForm.PendingConfirmation>();
             Dictionary<SteamGuardAccount, List<Confirmation>> autoAcceptConfirmations = new Dictionary<SteamGuardAccount, List<Confirmation>>();
 
             SteamGuardAccount[] accs =
@@ -1033,7 +1076,7 @@ namespace Steam_Desktop_Authenticator
                                 autoAcceptConfirmations[acc].Add(conf);
                             }
                             else
-                                confs.Add(conf);
+                                confs.Add(new TradePopupForm.PendingConfirmation(acc, conf));
                         }
                     }
                     catch (Exception)
@@ -1046,7 +1089,7 @@ namespace Steam_Desktop_Authenticator
 
                 if (confs.Count > 0)
                 {
-                    popupFrm.Confirmations = confs.ToArray();
+                    popupFrm.Requests = confs.ToArray();
                     popupFrm.Popup();
                 }
                 if (autoAcceptConfirmations.Count > 0)
@@ -1975,6 +2018,8 @@ namespace Steam_Desktop_Authenticator
             RegisterHotKeyBinding(HOTKEY_SCAN_QR, GetHotkeyBinding(HOTKEY_SCAN_QR));
             RegisterHotKeyBinding(HOTKEY_PREVIOUS_ACCOUNT, GetHotkeyBinding(HOTKEY_PREVIOUS_ACCOUNT));
             RegisterHotKeyBinding(HOTKEY_NEXT_ACCOUNT, GetHotkeyBinding(HOTKEY_NEXT_ACCOUNT));
+            RegisterHotKeyBinding(HOTKEY_AUTO_LOGIN_ALL, GetHotkeyBinding(HOTKEY_AUTO_LOGIN_ALL));
+            RegisterHotKeyBinding(HOTKEY_CONFIRMATIONS, GetHotkeyBinding(HOTKEY_CONFIRMATIONS));
         }
 
         private void UnregisterGlobalHotkeys()
@@ -1983,6 +2028,8 @@ namespace Steam_Desktop_Authenticator
             UnregisterHotKey(this.Handle, HOTKEY_SCAN_QR);
             UnregisterHotKey(this.Handle, HOTKEY_PREVIOUS_ACCOUNT);
             UnregisterHotKey(this.Handle, HOTKEY_NEXT_ACCOUNT);
+            UnregisterHotKey(this.Handle, HOTKEY_AUTO_LOGIN_ALL);
+            UnregisterHotKey(this.Handle, HOTKEY_CONFIRMATIONS);
         }
 
         private void SetQrHotkeysEnabled(bool enabled, bool showOverlay, bool persist)
@@ -2044,8 +2091,12 @@ namespace Steam_Desktop_Authenticator
                         return HotkeyBindingHelper.CreateDefault(Keys.S);
                     case HOTKEY_PREVIOUS_ACCOUNT:
                         return HotkeyBindingHelper.CreateDefault(Keys.Left);
-                    default:
+                    case HOTKEY_NEXT_ACCOUNT:
                         return HotkeyBindingHelper.CreateDefault(Keys.Right);
+                    case HOTKEY_AUTO_LOGIN_ALL:
+                        return HotkeyBindingHelper.CreateDefault(Keys.L);
+                    default:
+                        return HotkeyBindingHelper.CreateDefault(Keys.C);
                 }
             }
 
@@ -2057,8 +2108,12 @@ namespace Steam_Desktop_Authenticator
                     return HotkeyBindingHelper.Normalize(manifest.QrHotkeyScan, Keys.S);
                 case HOTKEY_PREVIOUS_ACCOUNT:
                     return HotkeyBindingHelper.Normalize(manifest.AccountHotkeyPrevious, Keys.Left);
-                default:
+                case HOTKEY_NEXT_ACCOUNT:
                     return HotkeyBindingHelper.Normalize(manifest.AccountHotkeyNext, Keys.Right);
+                case HOTKEY_AUTO_LOGIN_ALL:
+                    return HotkeyBindingHelper.Normalize(manifest.AutoLoginAllHotkey, Keys.L);
+                default:
+                    return HotkeyBindingHelper.Normalize(manifest.ConfirmationsHotkey, Keys.C);
             }
         }
 
@@ -2165,6 +2220,14 @@ namespace Steam_Desktop_Authenticator
                     break;
                 case HOTKEY_NEXT_ACCOUNT:
                     SelectRelativeAccount(1);
+                    break;
+                case HOTKEY_AUTO_LOGIN_ALL:
+                    ShowOverlay(Localizer.Choose("Auto login", "Автовход"), Localizer.Choose("Checking all accounts...", "Проверка всех аккаунтов..."));
+                    await RunAutoLoginForAllAccountsAsync(true, true, Localizer.Choose("Auto login all accounts", "Автовход для всех аккаунтов"));
+                    break;
+                case HOTKEY_CONFIRMATIONS:
+                    ShowOverlay(Localizer.Choose("Confirmations", "Подтверждения"), Localizer.Choose("Loading all accounts...", "Загрузка всех аккаунтов..."));
+                    await OpenAllConfirmationsAsync();
                     break;
             }
         }

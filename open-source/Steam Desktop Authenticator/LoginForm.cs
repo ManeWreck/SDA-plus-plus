@@ -47,7 +47,8 @@ namespace Steam_Desktop_Authenticator
 
                 if (account?.Session != null)
                 {
-                    chkRememberPassword.Checked = storedCredentialLoginService.HasStoredCredentials(account.Session.SteamID, account.AccountName);
+                    bool hasStoredCredentials = storedCredentialLoginService.HasStoredCredentials(account.Session.SteamID, account.AccountName);
+                    chkRememberPassword.Checked = hasStoredCredentials || LoginReason == LoginType.Refresh;
                 }
             }
             catch (Exception)
@@ -137,7 +138,8 @@ namespace Steam_Desktop_Authenticator
                 {
                     Username = username,
                     Password = password,
-                    IsPersistentSession = false,
+                    // Request a renewable session that remains valid across SDA++ restarts.
+                    IsPersistentSession = true,
                     PlatformType = EAuthTokenPlatformType.k_EAuthTokenPlatformType_MobileApp,
                     ClientOSType = EOSType.Android9,
                     Authenticator = new UserFormAuthenticator(this.account),
@@ -428,7 +430,7 @@ namespace Steam_Desktop_Authenticator
             labelLoginExplanation.Text = Localizer.Choose(
                 "This will activate Steam Desktop Authenticator on your Steam account. This requires a phone number that can receive SMS.",
                 "Это активирует Steam Desktop Authenticator для вашего аккаунта Steam. Для этого нужен номер телефона, который может получать SMS.");
-            chkRememberPassword.Text = Localizer.Choose("Store password encrypted for auto-login", "Сохранить пароль в зашифрованном виде для автовхода");
+            chkRememberPassword.Text = Localizer.Choose("Save for auto-login", "Сохранить для автовхода");
         }
 
         private void PersistStoredCredentials(ulong steamId, string accountName, string username, string password)

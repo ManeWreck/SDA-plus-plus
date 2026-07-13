@@ -79,8 +79,8 @@ namespace Steam_Desktop_Authenticator
 
             using (var notice = new StartupNoticeForm(
                 Localizer.Choose(
-                    Branding.FullAppName + " is a personal fork built for faster QR approvals, session tools, and hotkeys.\n\nIt is not affiliated with Valve or Steam. Keep backups of your maFiles and use it only on systems you trust.",
-                    Branding.FullAppName + " — это персональный форк, созданный для более быстрых QR-подтверждений, управления сессиями и хоткеев.\n\nОн не связан с Valve или Steam. Храните резервные копии maFiles и используйте программу только на доверенных системах.")))
+                    Branding.FullAppName + " includes faster QR approvals, session tools, and hotkeys.\n\nIt is not affiliated with Valve or Steam. Keep backups of your maFiles and use it only on systems you trust.",
+                    Branding.FullAppName + " включает быстрые QR-подтверждения, инструменты управления сессиями и хоткеи.\n\nПриложение не связано с Valve или Steam. Храните резервные копии maFiles и используйте его только на доверенных системах.")))
             {
                 notice.ShowDialog();
             }

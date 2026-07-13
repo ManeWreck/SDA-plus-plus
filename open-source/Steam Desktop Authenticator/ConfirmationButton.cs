@@ -11,6 +11,8 @@ namespace Steam_Desktop_Authenticator
     public class ConfirmationButton : Button
     {
         public Confirmation Confirmation { get; set; }
+
+        public SteamGuardAccount Account { get; set; }
     }
 
 }

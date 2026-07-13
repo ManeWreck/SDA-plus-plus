@@ -14,7 +14,7 @@ namespace Steam_Desktop_Authenticator
     public partial class TradePopupForm : Form
     {
         private SteamGuardAccount acc;
-        private List<Confirmation> confirms = new List<Confirmation>();
+        private List<PendingConfirmation> requests = new List<PendingConfirmation>();
         private bool deny2, accept2;
 
         public TradePopupForm()
@@ -31,8 +31,14 @@ namespace Steam_Desktop_Authenticator
 
         public Confirmation[] Confirmations
         {
-            get { return confirms.ToArray(); }
-            set { confirms = new List<Confirmation>(value); }
+            get { return requests.Select(request => request.Confirmation).ToArray(); }
+            set { requests = new List<PendingConfirmation>((value ?? Array.Empty<Confirmation>()).Select(confirmation => new PendingConfirmation(acc, confirmation))); }
+        }
+
+        public PendingConfirmation[] Requests
+        {
+            get { return requests.ToArray(); }
+            set { requests = new List<PendingConfirmation>(value ?? Array.Empty<PendingConfirmation>()); }
         }
 
         private void TradePopupForm_Load(object sender, EventArgs e)
@@ -52,8 +58,9 @@ namespace Steam_Desktop_Authenticator
             else
             {
                 lblStatus.Text = "Подтверждение...";
-                acc.AcceptConfirmation(confirms[0]);
-                confirms.RemoveAt(0);
+                PendingConfirmation request = requests[0];
+                request.Account.AcceptConfirmation(request.Confirmation);
+                requests.RemoveAt(0);
                 Reset();
             }
         }
@@ -69,8 +76,9 @@ namespace Steam_Desktop_Authenticator
             else
             {
                 lblStatus.Text = "Отклонение...";
-                acc.DenyConfirmation(confirms[0]);
-                confirms.RemoveAt(0);
+                PendingConfirmation request = requests[0];
+                request.Account.DenyConfirmation(request.Confirmation);
+                requests.RemoveAt(0);
                 Reset();
             }
         }
@@ -87,12 +95,14 @@ namespace Steam_Desktop_Authenticator
             lblAccount.Text = "";
             lblStatus.Text = "";
 
-            if (confirms.Count == 0)
+            if (requests.Count == 0)
             {
                 this.Hide();
             }
             else
             {
+                acc = requests[0].Account;
+                lblAccount.Text = acc.AccountName;
                 //TODO: Re-add confirmation description support to SteamAuth.
                 lblDesc.Text = "Подтверждение";
             }
@@ -102,6 +112,19 @@ namespace Steam_Desktop_Authenticator
         {
             Reset();
             this.Show();
+        }
+
+        public sealed class PendingConfirmation
+        {
+            public PendingConfirmation(SteamGuardAccount account, Confirmation confirmation)
+            {
+                Account = account ?? throw new ArgumentNullException(nameof(account));
+                Confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
+            }
+
+            public SteamGuardAccount Account { get; }
+
+            public Confirmation Confirmation { get; }
         }
     }
 }

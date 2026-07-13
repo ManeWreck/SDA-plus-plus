@@ -7,6 +7,20 @@ open-source/.vs/
 portable-exe/maFiles/*
 !portable-exe/maFiles/README.txt
 
+# Steam Guard and account secrets (never commit)
+**/*.maFile
+**/maFiles/**
+!portable-exe/maFiles/README.txt
+**/manifest.json
+**/credentials.json
+**/credentials.secure.json
+**/cloud.secret.json
+**/webdav.secret.json
+**/*cookie*.json
+**/*token*.json
+**/*secret*.local.json
+**/backups/**
+
 # Common local artifacts
 *.zip
 *.7z
