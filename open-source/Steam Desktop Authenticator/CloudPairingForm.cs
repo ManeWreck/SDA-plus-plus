@@ -38,7 +38,7 @@ namespace Steam_Desktop_Authenticator
             description.SetBounds(24, 54, 342, 54);
             description.TextAlign = ContentAlignment.MiddleCenter;
             description.ForeColor = Branding.MutedText;
-            description.Text = Localizer.Choose("Open QR in SDA++ Mobile and scan this code. Both devices must be on the same private network.", "Откройте QR в SDA++ Mobile и отсканируйте код. Оба устройства должны быть в одной частной сети.");
+            description.Text = Localizer.Choose("Scan in SDA++ Mobile. Both devices must share a private network; allow SDA++ through Windows Firewall.", "Сканируйте в SDA++ Mobile. Устройства должны быть в одной частной сети; разрешите SDA++ в брандмауэре Windows.");
 
             qrCode.SetBounds(55, 116, 280, 280);
             qrCode.SizeMode = PictureBoxSizeMode.Zoom;

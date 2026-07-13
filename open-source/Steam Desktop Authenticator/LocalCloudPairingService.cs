@@ -116,13 +116,35 @@ namespace Steam_Desktop_Authenticator
         private static string[] GetLanAddresses()
         {
             return NetworkInterface.GetAllNetworkInterfaces()
-                .Where(adapter => adapter.OperationalStatus == OperationalStatus.Up && adapter.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                .Where(IsUsableLanAdapter)
                 .SelectMany(adapter => adapter.GetIPProperties().UnicastAddresses)
                 .Where(address => address.Address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(address.Address))
                 .Select(address => address.Address.ToString())
                 .Distinct()
                 .OrderByDescending(IsPrivateAddress)
                 .ToArray();
+        }
+
+        private static bool IsUsableLanAdapter(NetworkInterface adapter)
+        {
+            if (adapter.OperationalStatus != OperationalStatus.Up ||
+                adapter.NetworkInterfaceType != NetworkInterfaceType.Ethernet &&
+                adapter.NetworkInterfaceType != NetworkInterfaceType.Wireless80211)
+            {
+                return false;
+            }
+
+            IPInterfaceProperties properties = adapter.GetIPProperties();
+            if (!properties.GatewayAddresses.Any(gateway =>
+                    gateway.Address.AddressFamily == AddressFamily.InterNetwork &&
+                    !gateway.Address.Equals(IPAddress.Any)))
+            {
+                return false;
+            }
+
+            string identity = (adapter.Name + " " + adapter.Description).ToLowerInvariant();
+            string[] virtualMarkers = { "radmin", "vpn", "zerotier", "tap", "tunnel", "virtual", "hyper-v", "vmware", "vbox" };
+            return !virtualMarkers.Any(identity.Contains);
         }
 
         private static bool IsPrivateAddress(string value)
