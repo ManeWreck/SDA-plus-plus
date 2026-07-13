@@ -24,6 +24,8 @@ namespace Steam_Desktop_Authenticator
         private static SemaphoreSlim confirmationsSemaphore = new SemaphoreSlim(1, 1);
         private readonly SteamQrLoginService qrLoginService = new SteamQrLoginService();
         private readonly StoredCredentialLoginService storedCredentialLoginService = new StoredCredentialLoginService();
+        private readonly UpdateCheckService updateCheckService = new UpdateCheckService();
+        private readonly System.Windows.Forms.Timer updateCheckTimer = new System.Windows.Forms.Timer { Interval = 6 * 60 * 60 * 1000 };
         private readonly HotkeyOverlayForm hotkeyOverlay = new HotkeyOverlayForm();
         private readonly Label lblAccountName = new Label();
         private readonly Label lblAccountHint = new Label();
@@ -66,6 +68,9 @@ namespace Steam_Desktop_Authenticator
         private int timeoutBarValue = 0;
         private int timeoutBarMax = 30;
         private bool startupBatchAutoLoginAttempted = false;
+        private bool updateCheckInProgress = false;
+        private bool updateNotificationShown = false;
+        private string updatePageUrl = Branding.GithubUrl;
 
         // Forms
         private TradePopupForm popupFrm = new TradePopupForm();
@@ -87,6 +92,7 @@ namespace Steam_Desktop_Authenticator
             menuManageCredentials.Click += menuManageCredentials_Click;
             menuAutoLoginAllAccounts.Click += menuAutoLoginAllAccounts_Click;
             menuAccountMonitoring.Click += menuAccountMonitoring_Click;
+            updateCheckTimer.Tick += async (sender, args) => await CheckForUpdatesAsync();
             DoubleBuffered = true;
             BuildModernLayout();
             ModernUi.AttachWindowChrome(this, true, false);
@@ -536,7 +542,7 @@ namespace Steam_Desktop_Authenticator
             RegisterGlobalHotkeys();
             loadAccountsList();
 
-            checkForUpdates();
+            StartUpdateChecks();
             UpdateSelectedAccountCard();
 
             await MaybeAutoLoginAllAccountsOnStartupAsync();
@@ -564,6 +570,8 @@ namespace Steam_Desktop_Authenticator
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            updateCheckTimer.Stop();
+            updateCheckTimer.Dispose();
             UnregisterGlobalHotkeys();
             hotkeyOverlay.Close();
             Application.Exit();
@@ -679,7 +687,7 @@ namespace Steam_Desktop_Authenticator
 
         private void labelUpdate_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
-            Process.Start(new ProcessStartInfo(Branding.GithubUrl) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(updatePageUrl) { UseShellExecute = true });
         }
 
         private void lblFooterKofi_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
@@ -2170,10 +2178,55 @@ namespace Steam_Desktop_Authenticator
             return string.IsNullOrWhiteSpace(ex.Message) ? "Unknown error." : ex.Message;
         }
 
-        private void checkForUpdates()
+        private void StartUpdateChecks()
         {
             labelUpdate.Text = "GitHub";
             lblFooterKofi.Text = "Ko-fi";
+            updatePageUrl = Branding.GithubUrl;
+            updateCheckTimer.Start();
+            _ = CheckForUpdatesAsync();
+        }
+
+        private async Task CheckForUpdatesAsync()
+        {
+            if (updateCheckInProgress)
+            {
+                return;
+            }
+
+            updateCheckInProgress = true;
+            try
+            {
+                UpdateCheckResult result = await updateCheckService.CheckAsync(Application.ProductVersion);
+                if (!result.IsUpdateAvailable || IsDisposed)
+                {
+                    return;
+                }
+
+                updatePageUrl = result.ReleaseUrl;
+                labelUpdate.Text = Localizer.Choose($"Update v{result.LatestVersionText}", $"Обновление v{result.LatestVersionText}");
+                labelUpdate.Size = new Size(130, 16);
+                lblFooterKofi.Location = new Point(150, lblFooterKofi.Location.Y);
+
+                if (!updateNotificationShown)
+                {
+                    updateNotificationShown = true;
+                    trayIcon.BalloonTipTitle = Localizer.Choose("SDA++ update available", "Доступно обновление SDA++");
+                    trayIcon.BalloonTipText = Localizer.Choose(
+                        $"Version {result.LatestVersionText} is available. Click the GitHub link in SDA++ to download it.",
+                        $"Доступна версия {result.LatestVersionText}. Нажмите ссылку обновления в SDA++, чтобы скачать её.");
+                    trayIcon.BalloonTipIcon = ToolTipIcon.Info;
+                    trayIcon.ShowBalloonTip(5000);
+                }
+            }
+            catch
+            {
+                // Update checks must never interrupt Steam Guard or account workflows.
+            }
+            finally
+            {
+                updateCheckInProgress = false;
+            }
         }
 
         private void MainForm_KeyDown(object sender, KeyEventArgs e)

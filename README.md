@@ -12,7 +12,7 @@
   <img alt="Windows" src="https://img.shields.io/badge/Platform-Windows%2010%2B-2d6cdf" />
   <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-0f172a" />
   <img alt="Build" src="https://img.shields.io/badge/Build-Release-1f7a4f" />
-  <img alt="Version" src="https://img.shields.io/badge/Version-1.4.0-668cff" />
+  <img alt="Version" src="https://img.shields.io/badge/Version-1.4.1-668cff" />
 </p>
 
 ![Selected account](./docs/selected-account.png)
@@ -49,6 +49,11 @@ Compared to the original SDA:
 - Searchable and sortable account monitoring without a Steam Web API key
 - Tradable-only CS2 inventory view with untradeable medals and items excluded
 - All-account confirmations with account-safe approve and reject actions
+- Automatic update checks at startup and every six hours
+
+### Update checks
+
+SDA++ checks the latest GitHub Release after startup and every six hours while it is running. When a newer version is available, the footer shows an update link and Windows displays a notification. SDA++ never downloads, replaces, or launches executables automatically, and a failed network request never interrupts Steam Guard.
 
 ## Account Monitoring
 
@@ -140,11 +145,11 @@ Project page: [SDA++ for Steam Guard on GitHub Pages](https://manewreck.github.i
 
 Current release asset:
 
-- `SDA++-1.4.0-portable.zip`
+- `SDA++-1.4.1-portable.zip`
 
 ## Quick Start
 
-1. Download `SDA++-1.4.0-portable.zip` from the Releases section.
+1. Download `SDA++-1.4.1-portable.zip` from the Releases section.
 2. Extract the archive.
 3. Run `SDA++.exe`.
 4. Create or import your Steam Guard account.
@@ -168,8 +173,8 @@ Always keep encrypted backups of your Steam Guard files.
 
 Release checksum:
 
-- `SDA++-1.4.0-portable.zip`
-  `SHA-256: B295329DE4C3FC8ED1089B33851E5CB401E4DE2A8AA1619A9C784F01E95BCFFB`
+- `SDA++-1.4.1-portable.zip`
+  `SHA-256: D30780B2C527F3A9B69EEAD540CE3DA111B84126F15A497F2326F2F1853A7E04`
 
 ## Repository Layout
 

@@ -12,7 +12,9 @@ namespace Steam_Desktop_Authenticator
         public const string AppName = "SDA++";
         public const string FullAppName = "SDA++ by Manewreck";
         public const string GithubUser = "Manewreck";
-        public const string GithubUrl = "https://github.com/Manewreck";
+        public const string GithubUrl = "https://github.com/ManeWreck/SDA-plus-plus";
+        public const string GithubReleasesUrl = "https://github.com/ManeWreck/SDA-plus-plus/releases";
+        public const string GithubLatestReleaseApiUrl = "https://api.github.com/repos/ManeWreck/SDA-plus-plus/releases/latest";
         public const string KofiUrl = "https://ko-fi.com/manewreck";
         public const string FooterText = "Кастомный форк Manewreck";
         public const string WelcomeSubtitle = "";

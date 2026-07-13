@@ -1,3 +1,14 @@
+# SDA++ 1.4.1
+
+SDA++ 1.4.1 adds safe automatic update checks.
+
+- Checks the latest GitHub Release after startup and every six hours.
+- Shows a footer link and Windows notification only when a newer version exists.
+- Opens the exact release page when the update link is clicked.
+- Never downloads, installs, or launches an update automatically.
+- Silently ignores network and GitHub API failures so Steam Guard remains uninterrupted.
+- Fixes the GitHub footer link to open the desktop SDA++ repository directly.
+
 # SDA++ 1.4.0
 
 SDA++ 1.4.0 improves multi-account operation, session recovery, confirmations, and account visibility.
