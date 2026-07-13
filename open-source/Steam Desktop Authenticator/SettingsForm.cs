@@ -33,6 +33,10 @@ namespace Steam_Desktop_Authenticator
         private readonly ComboBox cmbCredentialsCloudProvider = new ComboBox();
         private readonly Label lblCredentialsCloudPath = new Label();
         private readonly TextBox txtCredentialsCloudPath = new TextBox();
+        private readonly Label lblHotkeyAutoLoginAll = new Label();
+        private readonly TextBox txtHotkeyAutoLoginAll = new TextBox();
+        private readonly Label lblHotkeyConfirmations = new Label();
+        private readonly TextBox txtHotkeyConfirmations = new TextBox();
         private Manifest manifest;
         private bool fullyLoaded = false;
         private bool compactLayoutApplied = false;
@@ -51,6 +55,7 @@ namespace Steam_Desktop_Authenticator
         {
             InitializeComponent();
             Icon = Branding.LoadAppIcon();
+            CreateActionHotkeyControls();
             CreateCloudProviderControls();
             CreateCredentialsControls();
             Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
@@ -96,6 +101,8 @@ namespace Steam_Desktop_Authenticator
             BindHotkeyBox(txtHotkeyScan, manifest.QrHotkeyScan);
             BindHotkeyBox(txtHotkeyPrev, manifest.AccountHotkeyPrevious);
             BindHotkeyBox(txtHotkeyNext, manifest.AccountHotkeyNext);
+            BindHotkeyBox(txtHotkeyAutoLoginAll, manifest.AutoLoginAllHotkey);
+            BindHotkeyBox(txtHotkeyConfirmations, manifest.ConfirmationsHotkey);
 
             ApplyLocalization();
             RefreshCloudLastSyncInfo();
@@ -114,6 +121,18 @@ namespace Steam_Desktop_Authenticator
             groupCloud.Controls.Add(lblCloudExtra);
             groupCloud.Controls.Add(txtCloudExtra);
             groupCloud.Controls.Add(btnOneDriveSignIn);
+        }
+
+        private void CreateActionHotkeyControls()
+        {
+            txtHotkeyAutoLoginAll.ReadOnly = true;
+            txtHotkeyConfirmations.ReadOnly = true;
+            txtHotkeyAutoLoginAll.KeyDown += txtHotkey_KeyDown;
+            txtHotkeyConfirmations.KeyDown += txtHotkey_KeyDown;
+            groupQr.Controls.Add(lblHotkeyAutoLoginAll);
+            groupQr.Controls.Add(txtHotkeyAutoLoginAll);
+            groupQr.Controls.Add(lblHotkeyConfirmations);
+            groupQr.Controls.Add(txtHotkeyConfirmations);
         }
 
         private void CreateCredentialsControls()
@@ -264,32 +283,50 @@ namespace Steam_Desktop_Authenticator
         private void LayoutQrGroup()
         {
             label3.Location = new Point(14, 20);
+            label3.AutoSize = false;
+            label3.Size = new Size(153, 18);
             txtHotkeyToggle.Location = new Point(14, 38);
-            txtHotkeyToggle.Size = new Size(320, 24);
+            txtHotkeyToggle.Size = new Size(153, 24);
 
-            label4.Location = new Point(14, 72);
-            txtHotkeyScan.Location = new Point(14, 90);
-            txtHotkeyScan.Size = new Size(320, 24);
+            label4.Location = new Point(181, 20);
+            label4.AutoSize = false;
+            label4.Size = new Size(153, 18);
+            txtHotkeyScan.Location = new Point(181, 38);
+            txtHotkeyScan.Size = new Size(153, 24);
 
-            label5.Location = new Point(14, 124);
-            txtHotkeyPrev.Location = new Point(14, 142);
-            txtHotkeyPrev.Size = new Size(320, 24);
+            label5.Location = new Point(14, 76);
+            label5.AutoSize = false;
+            label5.Size = new Size(153, 18);
+            txtHotkeyPrev.Location = new Point(14, 94);
+            txtHotkeyPrev.Size = new Size(153, 24);
 
-            label6.Location = new Point(14, 176);
-            txtHotkeyNext.Location = new Point(14, 194);
-            txtHotkeyNext.Size = new Size(320, 24);
+            label6.Location = new Point(181, 76);
+            label6.AutoSize = false;
+            label6.Size = new Size(153, 18);
+            txtHotkeyNext.Location = new Point(181, 94);
+            txtHotkeyNext.Size = new Size(153, 24);
 
-            label7.Location = new Point(14, 230);
-            cmbQrCaptureMode.Location = new Point(14, 248);
+            lblHotkeyAutoLoginAll.Location = new Point(14, 132);
+            lblHotkeyAutoLoginAll.Size = new Size(153, 18);
+            txtHotkeyAutoLoginAll.Location = new Point(14, 150);
+            txtHotkeyAutoLoginAll.Size = new Size(153, 24);
+
+            lblHotkeyConfirmations.Location = new Point(181, 132);
+            lblHotkeyConfirmations.Size = new Size(153, 18);
+            txtHotkeyConfirmations.Location = new Point(181, 150);
+            txtHotkeyConfirmations.Size = new Size(153, 24);
+
+            label7.Location = new Point(14, 188);
+            cmbQrCaptureMode.Location = new Point(14, 206);
             cmbQrCaptureMode.Size = new Size(320, 24);
 
-            lblCursorScanSize.Location = new Point(14, 286);
-            numCursorScanSize.Location = new Point(160, 284);
+            lblCursorScanSize.Location = new Point(14, 246);
+            numCursorScanSize.Location = new Point(160, 244);
             numCursorScanSize.Size = new Size(70, 22);
-            btnResetHotkeys.Location = new Point(238, 281);
+            btnResetHotkeys.Location = new Point(238, 241);
             btnResetHotkeys.Size = new Size(96, 28);
 
-            chkEnableQrHotkeys.Location = new Point(14, 330);
+            chkEnableQrHotkeys.Location = new Point(14, 290);
             chkEnableQrHotkeys.MaximumSize = new Size(320, 0);
         }
 
@@ -395,10 +432,12 @@ namespace Steam_Desktop_Authenticator
             chkConfirmTrades.Text = Localizer.Choose("Auto-confirm trades", "Автоподтверждение обменов");
             groupQr.Tag = Localizer.Choose("QR Login and Hotkeys", "QR-вход и хоткеи");
             chkEnableQrHotkeys.Text = Localizer.Choose("Start with QR hotkeys enabled", "Запускать с включенными QR-хоткеями");
-            label3.Text = Localizer.Choose("Toggle QR hotkey mode:", "Переключить режим QR-хоткеев:");
-            label4.Text = Localizer.Choose("Trigger QR scan:", "Запустить скан QR:");
-            label5.Text = Localizer.Choose("Switch to previous account:", "Переключить на предыдущий аккаунт:");
-            label6.Text = Localizer.Choose("Switch to next account:", "Переключить на следующий аккаунт:");
+            label3.Text = Localizer.Choose("QR mode:", "Режим QR:");
+            label4.Text = Localizer.Choose("Scan QR:", "Скан QR:");
+            label5.Text = Localizer.Choose("Previous account:", "Предыдущий аккаунт:");
+            label6.Text = Localizer.Choose("Next account:", "Следующий аккаунт:");
+            lblHotkeyAutoLoginAll.Text = Localizer.Choose("Auto-login all:", "Автовход для всех:");
+            lblHotkeyConfirmations.Text = Localizer.Choose("Open confirmations:", "Открыть подтверждения:");
             label7.Text = Localizer.Choose("QR capture source:", "Источник захвата QR:");
             lblCursorScanSize.Text = Localizer.Choose("Cursor area size (pixels):", "Размер области у курсора (пикс.):");
             btnResetHotkeys.Text = Localizer.Choose("Reset defaults", "Сбросить");
@@ -663,7 +702,9 @@ namespace Steam_Desktop_Authenticator
                 { "QR mode toggle", GetBindingFromBox(txtHotkeyToggle, Keys.Q) },
                 { "QR scan", GetBindingFromBox(txtHotkeyScan, Keys.S) },
                 { "Previous account", GetBindingFromBox(txtHotkeyPrev, Keys.Left) },
-                { "Next account", GetBindingFromBox(txtHotkeyNext, Keys.Right) }
+                { "Next account", GetBindingFromBox(txtHotkeyNext, Keys.Right) },
+                { "Auto login all", GetBindingFromBox(txtHotkeyAutoLoginAll, Keys.L) },
+                { "Confirmations", GetBindingFromBox(txtHotkeyConfirmations, Keys.C) }
             };
 
             if (bindings.Values.GroupBy(HotkeyBindingHelper.ToDisplayText).Any(group => group.Count() > 1))
@@ -682,6 +723,8 @@ namespace Steam_Desktop_Authenticator
             manifest.QrHotkeyScan = bindings["QR scan"];
             manifest.AccountHotkeyPrevious = bindings["Previous account"];
             manifest.AccountHotkeyNext = bindings["Next account"];
+            manifest.AutoLoginAllHotkey = bindings["Auto login all"];
+            manifest.ConfirmationsHotkey = bindings["Confirmations"];
             manifest.QrCaptureMode = (QrCaptureMode)cmbQrCaptureMode.SelectedIndex;
             manifest.QrCursorScanSize = (int)numCursorScanSize.Value;
             manifest.AutoLoginForExpiredSessions = chkAutoLoginExpired.Checked;
@@ -756,6 +799,8 @@ namespace Steam_Desktop_Authenticator
             BindHotkeyBox(txtHotkeyScan, HotkeyBindingHelper.CreateDefault(Keys.S));
             BindHotkeyBox(txtHotkeyPrev, HotkeyBindingHelper.CreateDefault(Keys.Left));
             BindHotkeyBox(txtHotkeyNext, HotkeyBindingHelper.CreateDefault(Keys.Right));
+            BindHotkeyBox(txtHotkeyAutoLoginAll, HotkeyBindingHelper.CreateDefault(Keys.L));
+            BindHotkeyBox(txtHotkeyConfirmations, HotkeyBindingHelper.CreateDefault(Keys.C));
         }
 
         private void BindHotkeyBox(TextBox hotkeyBox, HotkeyBinding binding)

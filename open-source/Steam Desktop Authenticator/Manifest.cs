@@ -60,6 +60,12 @@ namespace Steam_Desktop_Authenticator
         [JsonProperty("account_hotkey_next")]
         public HotkeyBinding AccountHotkeyNext { get; set; } = HotkeyBindingHelper.CreateDefault(Keys.Right);
 
+        [JsonProperty("auto_login_all_hotkey")]
+        public HotkeyBinding AutoLoginAllHotkey { get; set; } = HotkeyBindingHelper.CreateDefault(Keys.L);
+
+        [JsonProperty("confirmations_hotkey")]
+        public HotkeyBinding ConfirmationsHotkey { get; set; } = HotkeyBindingHelper.CreateDefault(Keys.C);
+
         [JsonProperty("qr_capture_mode")]
         public QrCaptureMode QrCaptureMode { get; set; } = QrCaptureMode.FullDesktop;
 
@@ -218,6 +224,8 @@ namespace Steam_Desktop_Authenticator
             newManifest.QrHotkeyScan = HotkeyBindingHelper.CreateDefault(Keys.S);
             newManifest.AccountHotkeyPrevious = HotkeyBindingHelper.CreateDefault(Keys.Left);
             newManifest.AccountHotkeyNext = HotkeyBindingHelper.CreateDefault(Keys.Right);
+            newManifest.AutoLoginAllHotkey = HotkeyBindingHelper.CreateDefault(Keys.L);
+            newManifest.ConfirmationsHotkey = HotkeyBindingHelper.CreateDefault(Keys.C);
             newManifest.QrCaptureMode = QrCaptureMode.FullDesktop;
             newManifest.QrCursorScanSize = 700;
             newManifest.WebDavUrl = string.Empty;
@@ -610,6 +618,8 @@ namespace Steam_Desktop_Authenticator
             QrHotkeyScan = HotkeyBindingHelper.Normalize(QrHotkeyScan, Keys.S);
             AccountHotkeyPrevious = HotkeyBindingHelper.Normalize(AccountHotkeyPrevious, Keys.Left);
             AccountHotkeyNext = HotkeyBindingHelper.Normalize(AccountHotkeyNext, Keys.Right);
+            AutoLoginAllHotkey = HotkeyBindingHelper.Normalize(AutoLoginAllHotkey, Keys.L);
+            ConfirmationsHotkey = HotkeyBindingHelper.Normalize(ConfirmationsHotkey, Keys.C);
 
             if (!Enum.IsDefined(typeof(QrCaptureMode), QrCaptureMode))
             {

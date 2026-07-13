@@ -12,6 +12,7 @@
   <img alt="Windows" src="https://img.shields.io/badge/Platform-Windows%2010%2B-2d6cdf" />
   <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-0f172a" />
   <img alt="Build" src="https://img.shields.io/badge/Build-Release-1f7a4f" />
+  <img alt="Version" src="https://img.shields.io/badge/Version-1.4.0-668cff" />
 </p>
 
 ![Selected account](./docs/selected-account.png)
@@ -30,6 +31,9 @@ Compared to the original SDA:
 - Separate credential vault support
 - Enhanced account management tools
 - Updated dark UI
+- All-account monitoring for VAC, level, games, session health, and tradable CS2 inventory
+- Unified confirmations across loaded accounts
+- Batch auto-login and configurable recovery hotkeys
 
 ## Features
 
@@ -42,6 +46,32 @@ Compared to the original SDA:
 - Improved Russian localization
 - Updated dark-themed interface
 - Portable build with no installation required
+- Searchable and sortable account monitoring without a Steam Web API key
+- Tradable-only CS2 inventory view with untradeable medals and items excluded
+- All-account confirmations with account-safe approve and reject actions
+
+## Account Monitoring
+
+Open **Monitor** from the main navigation to inspect all loaded accounts in one place. SDA++ reads public Steam Community data without requiring a Steam Web API key and shows:
+
+- VAC and visible ban status
+- Steam level and game count
+- current SDA++ session health
+- total tradable CS2 inventory items
+- private-profile and request-error states
+
+The dashboard supports account/SteamID search, attention and session filters, sorting, and a five-minute cache. Double-click an account to open its tradable CS2 inventory. Medals and all other untradeable items are intentionally excluded.
+
+![Account monitoring](./docs/account-monitoring.png)
+
+## Multi-account Recovery and Confirmations
+
+**Account tools > Auto login all accounts** restores available sessions using the encrypted credentials vault. The confirmations view combines confirmations from every loaded account and labels each action with its originating account.
+
+Default hotkeys:
+
+- `Ctrl+Shift+L` runs auto-login for all accounts
+- `Ctrl+Shift+C` opens confirmations for all accounts
 
 ## Interface Tour
 
@@ -110,11 +140,11 @@ Project page: [SDA++ for Steam Guard on GitHub Pages](https://manewreck.github.i
 
 Current release asset:
 
-- `SDA++-portable.zip`
+- `SDA++-1.4.0-portable.zip`
 
 ## Quick Start
 
-1. Download `SDA++-portable.zip` from the Releases section.
+1. Download `SDA++-1.4.0-portable.zip` from the Releases section.
 2. Extract the archive.
 3. Run `SDA++.exe`.
 4. Create or import your Steam Guard account.
@@ -138,8 +168,8 @@ Always keep encrypted backups of your Steam Guard files.
 
 Release checksum:
 
-- `SDA++-portable.zip`
-  `SHA-256: 5033D9DD79C688F4D2AABEA8E9CF5790EC1F4770710D4199741BFB1FABB5CCFD`
+- `SDA++-1.4.0-portable.zip`
+  `SHA-256: B295329DE4C3FC8ED1089B33851E5CB401E4DE2A8AA1619A9C784F01E95BCFFB`
 
 ## Repository Layout
 

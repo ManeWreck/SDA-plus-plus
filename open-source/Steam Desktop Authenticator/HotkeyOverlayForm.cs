@@ -90,6 +90,11 @@ namespace Steam_Desktop_Authenticator
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            if (Width <= 1 || Height <= 1)
+            {
+                base.OnPaint(e);
+                return;
+            }
 
             Rectangle fillRect = new Rectangle(0, 0, Width - 1, Height - 1);
             using (GraphicsPath path = CreateRoundedRectangle(fillRect, 22))
@@ -107,6 +112,12 @@ namespace Steam_Desktop_Authenticator
 
         private void ApplyRoundedRegion()
         {
+            if (Width <= 0 || Height <= 0)
+            {
+                Region = null;
+                return;
+            }
+
             using (GraphicsPath path = CreateRoundedRectangle(new Rectangle(0, 0, Width, Height), 22))
             {
                 Region = new Region(path);

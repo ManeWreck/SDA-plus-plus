@@ -228,6 +228,11 @@ namespace Steam_Desktop_Authenticator
             shell.Paint += (_, e) =>
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                if (shell.Width <= 1 || shell.Height <= 1)
+                {
+                    return;
+                }
+
                 Rectangle rect = new Rectangle(0, 0, shell.Width - 1, shell.Height - 1);
                 bool focused = textBox.Focused;
 
@@ -292,6 +297,11 @@ namespace Steam_Desktop_Authenticator
             shell.Paint += (_, e) =>
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                if (shell.Width <= 1 || shell.Height <= 1)
+                {
+                    return;
+                }
+
                 Rectangle rect = new Rectangle(0, 0, shell.Width - 1, shell.Height - 1);
                 using GraphicsPath path = CreateRoundedPath(rect, 12);
                 using SolidBrush fillBrush = new SolidBrush(Color.FromArgb(196, Branding.AccentDark));
@@ -323,6 +333,11 @@ namespace Steam_Desktop_Authenticator
             }
 
             Rectangle bounds = form.ClientRectangle;
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+            {
+                return;
+            }
+
             using (LinearGradientBrush brush = new LinearGradientBrush(bounds, Color.FromArgb(18, 22, 30), Color.FromArgb(11, 13, 18), 90f))
             {
                 e.Graphics.FillRectangle(brush, bounds);
@@ -387,6 +402,10 @@ namespace Steam_Desktop_Authenticator
 
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             e.Graphics.Clear(group.Parent?.BackColor ?? Branding.WindowBackground);
+            if (group.Width <= 3 || group.Height <= 10)
+            {
+                return;
+            }
 
             Rectangle rect = new Rectangle(1, 8, group.Width - 3, group.Height - 10);
             using (GraphicsPath path = CreateRoundedPath(rect, 16))
@@ -479,6 +498,10 @@ namespace Steam_Desktop_Authenticator
 
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             e.Graphics.Clear(button.Parent?.BackColor ?? Branding.WindowBackground);
+            if (button.Width <= 1 || button.Height <= 1)
+            {
+                return;
+            }
 
             Rectangle rect = new Rectangle(0, 0, button.Width - 1, button.Height - 1);
             using (GraphicsPath path = CreateRoundedPath(rect, 8))
@@ -501,6 +524,12 @@ namespace Steam_Desktop_Authenticator
 
         private static void ApplyRoundedRegion(Control control, int radius)
         {
+            if (control.Width <= 0 || control.Height <= 0)
+            {
+                control.Region = null;
+                return;
+            }
+
             using (GraphicsPath path = CreateRoundedPath(new Rectangle(0, 0, control.Width, control.Height), radius))
             {
                 control.Region = new Region(path);
