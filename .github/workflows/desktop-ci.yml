@@ -1,0 +1,88 @@
+name: Desktop build and safety checks
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Reject tracked account secrets
+        shell: pwsh
+        run: ./.github/scripts/assert-no-sensitive-files.ps1 -TrackedFiles
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore "open-source/SteamDesktopAuthenticator.sln"
+
+      - name: Build release
+        run: dotnet build "open-source/SteamDesktopAuthenticator.sln" --configuration Release --no-restore
+
+      - name: Prepare portable package
+        shell: pwsh
+        run: |
+          $source = "open-source/Steam Desktop Authenticator/bin/Release/net8.0-windows"
+          $stage = "artifacts/SDA++"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item -Path "$source/*" -Destination $stage -Recurse -Force
+          Remove-Item -LiteralPath "$stage/maFiles" -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path "$stage/maFiles" | Out-Null
+          Set-Content -LiteralPath "$stage/maFiles/README.txt" -Encoding UTF8 -Value "Place your own .maFile backups here. Never publish this folder."
+          ./.github/scripts/assert-no-sensitive-files.ps1 -ScanRoot $stage
+          $version = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME.TrimStart("v") } else { "ci" }
+          $archive = "artifacts/SDA++-$version-portable.zip"
+          Compress-Archive -Path "$stage/*" -DestinationPath $archive -Force
+          $checksum = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
+          Set-Content -LiteralPath "$archive.sha256" -Encoding ASCII -Value "$checksum  $(Split-Path -Leaf $archive)"
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SDA++-windows-portable
+          path: |
+            artifacts/SDA++-*-portable.zip
+            artifacts/SDA++-*-portable.zip.sha256
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download portable artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: SDA++-windows-portable
+          path: artifacts
+
+      - name: Publish GitHub release asset
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $asset = (Get-ChildItem -LiteralPath artifacts -Filter "SDA++-*-portable.zip" -File | Select-Object -First 1).FullName
+          $checksum = "$asset.sha256"
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag $asset $checksum --title "SDA++ $tag" --generate-notes
+          } else {
+            gh release upload $tag $asset $checksum --clobber
+          }
