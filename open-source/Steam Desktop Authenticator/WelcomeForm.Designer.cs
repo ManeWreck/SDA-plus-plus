@@ -33,6 +33,7 @@
             this.btnImportConfig = new System.Windows.Forms.Button();
             this.label2 = new System.Windows.Forms.Label();
             this.btnJustStart = new System.Windows.Forms.Button();
+            this.btnPairMobile = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // label1
@@ -48,7 +49,7 @@
             // btnImportConfig
             // 
             this.btnImportConfig.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnImportConfig.Location = new System.Drawing.Point(12, 136);
+            this.btnImportConfig.Location = new System.Drawing.Point(12, 188);
             this.btnImportConfig.Name = "btnImportConfig";
             this.btnImportConfig.Size = new System.Drawing.Size(366, 44);
             this.btnImportConfig.TabIndex = 1;
@@ -69,19 +70,30 @@
             // btnJustStart
             // 
             this.btnJustStart.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.btnJustStart.Location = new System.Drawing.Point(12, 188);
+            this.btnJustStart.Location = new System.Drawing.Point(12, 240);
             this.btnJustStart.Name = "btnJustStart";
             this.btnJustStart.Size = new System.Drawing.Size(366, 46);
             this.btnJustStart.TabIndex = 4;
             this.btnJustStart.Text = "Начать с нуля с упором на QR-инструменты\r\nи войти в мои аккаунты Steam.";
             this.btnJustStart.UseVisualStyleBackColor = true;
             this.btnJustStart.Click += new System.EventHandler(this.btnJustStart_Click);
+            //
+            // btnPairMobile
+            //
+            this.btnPairMobile.Location = new System.Drawing.Point(12, 136);
+            this.btnPairMobile.Name = "btnPairMobile";
+            this.btnPairMobile.Size = new System.Drawing.Size(366, 44);
+            this.btnPairMobile.TabIndex = 1;
+            this.btnPairMobile.Text = "Connect from SDA++ Mobile";
+            this.btnPairMobile.UseVisualStyleBackColor = true;
+            this.btnPairMobile.Click += new System.EventHandler(this.btnPairMobile_Click);
             // 
             // WelcomeForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(390, 248);
+            this.ClientSize = new System.Drawing.Size(390, 302);
+            this.Controls.Add(this.btnPairMobile);
             this.Controls.Add(this.btnJustStart);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.btnImportConfig);
@@ -103,5 +115,6 @@
         private System.Windows.Forms.Button btnImportConfig;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Button btnJustStart;
+        private System.Windows.Forms.Button btnPairMobile;
     }
 }
