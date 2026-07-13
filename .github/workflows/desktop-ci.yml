@@ -76,6 +76,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           $tag = "${{ github.ref_name }}"
           $asset = (Get-ChildItem -LiteralPath artifacts -Filter "SDA++-*-portable.zip" -File | Select-Object -First 1).FullName
