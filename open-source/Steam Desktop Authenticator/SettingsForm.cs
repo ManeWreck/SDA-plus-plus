@@ -943,25 +943,40 @@ namespace Steam_Desktop_Authenticator
 
         private async void btnCloudPull_Click(object sender, EventArgs e)
         {
-            DialogResult result = MessageBox.Show(
-                Localizer.Choose(
-                    "Pull will back up your current local vault and then replace local manifest/maFiles with the cloud copy.\n\nContinue?",
-                    "Pull создаст резервную копию локальных данных, а затем заменит локальные manifest/maFiles копией из облака.\n\nПродолжить?"),
-                Localizer.Choose("Cloud Pull", "Загрузка из облака"),
-                MessageBoxButtons.OKCancel,
-                MessageBoxIcon.Warning);
-
-            if (result != DialogResult.OK)
-            {
-                return;
-            }
-
             await RunCloudActionAsync(Localizer.Choose("Pulling from cloud...", "Загрузка из облака..."), async () =>
             {
-                await UseCloudProvidersAsync((provider, credentialsProvider) => cloudSyncService.PullAsync(provider, chkSyncStoredCredentials.Checked, credentialsProvider));
+                CloudSyncService.CloudPullResult pullResult = null;
+                await UseCloudProvidersAsync(async (provider, credentialsProvider) =>
+                {
+                    CloudSyncService.CloudPullPlan plan = await cloudSyncService.PreparePullAsync(
+                        provider,
+                        chkSyncStoredCredentials.Checked,
+                        credentialsProvider);
+                    string summary = Localizer.Choose(
+                        $"Cloud vault validated successfully.\n\nAccounts in cloud: {plan.RemoteAccountCount}\nAccounts currently local: {plan.LocalAccountCount}\nVault encrypted: {(plan.IsEncrypted ? "Yes" : "No")}\nCredentials included: {(plan.IncludesCredentials ? "Yes" : "No")}\n\nA local backup will be created before any file is replaced. Continue?",
+                        $"Облачное хранилище успешно проверено.\n\nАккаунтов в облаке: {plan.RemoteAccountCount}\nАккаунтов локально сейчас: {plan.LocalAccountCount}\nХранилище зашифровано: {(plan.IsEncrypted ? "Да" : "Нет")}\nЛогины включены: {(plan.IncludesCredentials ? "Да" : "Нет")}\n\nПеред заменой файлов будет создана локальная резервная копия. Продолжить?");
+                    DialogResult confirmation = MessageBox.Show(
+                        summary,
+                        Localizer.Choose("Validated Cloud Pull", "Проверенная загрузка из облака"),
+                        MessageBoxButtons.OKCancel,
+                        MessageBoxIcon.Warning);
+                    if (confirmation == DialogResult.OK)
+                    {
+                        pullResult = cloudSyncService.CommitPull(plan);
+                    }
+                });
+
+                if (pullResult == null)
+                {
+                    lblCloudStatus.Text = Localizer.Choose("Pull canceled. No local files were changed.", "Загрузка отменена. Локальные файлы не изменены.");
+                    return;
+                }
+
                 manifest = Manifest.GetManifest(true);
                 UpdateCloudLastSync("pull", true);
-                lblCloudStatus.Text = Localizer.Choose("Pull completed. Close Settings to reload accounts.", "Загрузка завершена. Закройте настройки, чтобы обновить аккаунты.");
+                lblCloudStatus.Text = Localizer.Choose(
+                    $"Pull completed safely. {pullResult.AccountCount} accounts restored. Backup: {pullResult.BackupDirectory}",
+                    $"Безопасная загрузка завершена. Восстановлено аккаунтов: {pullResult.AccountCount}. Резервная копия: {pullResult.BackupDirectory}");
             }, "pull");
         }
 

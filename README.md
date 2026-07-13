@@ -1,4 +1,4 @@
-# Steam Desktop Authentificator ++
+# Steam Desktop Authenticator ++
 
 <p align="center">
   <img src="./icon.png" width="128" alt="SDA++ icon" />
@@ -12,7 +12,7 @@
   <img alt="Windows" src="https://img.shields.io/badge/Platform-Windows%2010%2B-2d6cdf" />
   <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-0f172a" />
   <img alt="Build" src="https://img.shields.io/badge/Build-Release-1f7a4f" />
-  <img alt="Version" src="https://img.shields.io/badge/Version-1.4.1-668cff" />
+  <img alt="Version" src="https://img.shields.io/badge/Version-1.5.0-668cff" />
 </p>
 
 ![Selected account](./docs/selected-account.png)
@@ -50,6 +50,11 @@ Compared to the original SDA:
 - Tradable-only CS2 inventory view with untradeable medals and items excluded
 - All-account confirmations with account-safe approve and reject actions
 - Automatic update checks at startup and every six hours
+- Validated cloud restore with preflight checks, local backup, atomic replacement, and automatic rollback
+
+### Safe cloud restore
+
+Cloud Pull now downloads and validates the complete remote vault before changing local data. SDA++ checks manifest entries, filenames, SteamIDs, account payloads, encryption metadata, duplicate entries, and the optional credentials document. A summary is shown before confirmation, the current vault is backed up, and `manifest.json` is committed last. If a disk operation fails, SDA++ restores the previous files automatically.
 
 ### Update checks
 
@@ -145,11 +150,11 @@ Project page: [SDA++ for Steam Guard on GitHub Pages](https://manewreck.github.i
 
 Current release asset:
 
-- `SDA++-1.4.1-portable.zip`
+- `SDA++-1.5.0-portable.zip`
 
 ## Quick Start
 
-1. Download `SDA++-1.4.1-portable.zip` from the Releases section.
+1. Download `SDA++-1.5.0-portable.zip` from the Releases section.
 2. Extract the archive.
 3. Run `SDA++.exe`.
 4. Create or import your Steam Guard account.
@@ -171,10 +176,7 @@ The public release package does not contain:
 
 Always keep encrypted backups of your Steam Guard files.
 
-Release checksum:
-
-- `SDA++-1.4.1-portable.zip`
-  `SHA-256: D30780B2C527F3A9B69EEAD540CE3DA111B84126F15A497F2326F2F1853A7E04`
+Every GitHub Release includes a matching `.sha256` file generated from the exact published ZIP.
 
 ## Repository Layout
 
@@ -205,6 +207,8 @@ Build:
 ```powershell
 dotnet build .\open-source\SteamDesktopAuthenticator.sln -c Release
 ```
+
+GitHub Actions runs the same Windows Release build for every push and pull request. It also rejects account secrets from tracked files and generated portable packages. Tags matching `v*` create or update a GitHub Release with a clean portable ZIP.
 
 ## Disclaimer
 
