@@ -55,9 +55,9 @@ Compared to the original SDA:
 
 ### One-scan mobile pairing
 
-On a fresh installation, choose **Connect cloud from SDA++ Mobile with one scan** and scan the two-minute QR code from the unlocked SDA++ Mobile app. The phone asks for explicit confirmation before sending the saved WebDAV URL, login, app password, and cloud folder over the local network.
+On a fresh installation, choose **Connect cloud from SDA++ Mobile with one scan** and scan the two-minute QR code from the unlocked SDA++ Mobile app. The phone asks for explicit confirmation before sending the saved WebDAV URL, login, app password, and cloud folder. SDA++ tries the local network first and automatically falls back to its HTTPS relay when direct LAN access is unavailable.
 
-Pairing uses ephemeral P-256 ECDH and AES-256-GCM. Steam secrets, account files, and vault keys are never placed in the QR or pairing payload. The received password is protected with Windows DPAPI, after which SDA++ offers its validated backup-first Cloud Pull. Both devices must be connected to the same private network; manual WebDAV setup remains available.
+Pairing uses ephemeral P-256 ECDH and AES-256-GCM. Steam secrets, account files, and vault keys are never placed in the QR or pairing payload. The relay only sees ciphertext, limits each random session to 64 KiB and two minutes, and deletes the payload after its first successful download. The received password is protected with Windows DPAPI, after which SDA++ offers its validated backup-first Cloud Pull. Manual WebDAV setup remains available.
 
 ### Safe cloud restore
 

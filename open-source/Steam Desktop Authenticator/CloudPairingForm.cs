@@ -16,10 +16,13 @@ namespace Steam_Desktop_Authenticator
         private readonly PictureBox qrCode = new PictureBox();
         private readonly Label description = new Label();
         private readonly Label status = new Label();
+        private readonly Button restart = new Button();
         private readonly Button cancel = new Button();
         private readonly System.Windows.Forms.Timer countdown = new System.Windows.Forms.Timer { Interval = 1000 };
-        private readonly CancellationTokenSource cancellation = new CancellationTokenSource();
+        private readonly CancellationTokenSource formCancellation = new CancellationTokenSource();
+        private CancellationTokenSource attemptCancellation;
         private LocalCloudPairingService service;
+        private int attemptId;
 
         public CloudPairingResult PairingResult { get; private set; }
 
@@ -48,14 +51,23 @@ namespace Steam_Desktop_Authenticator
             status.TextAlign = ContentAlignment.MiddleCenter;
             status.ForeColor = Branding.MutedText;
 
-            cancel.SetBounds(120, 447, 150, 34);
+            restart.SetBounds(40, 447, 145, 34);
+            restart.Text = Localizer.Choose("New QR", "Новый QR");
+            restart.Click += async (_, __) => await StartPairingAsync();
+            ModernUi.RoundButton(restart, true);
+
+            cancel.SetBounds(205, 447, 145, 34);
             cancel.Text = Localizer.Choose("Cancel", "Отмена");
             cancel.Click += (_, __) => Close();
             ModernUi.RoundButton(cancel, false);
 
-            Controls.AddRange(new Control[] { description, qrCode, status, cancel });
+            Controls.AddRange(new Control[] { description, qrCode, status, restart, cancel });
             Shown += async (_, __) => await StartPairingAsync();
-            FormClosed += (_, __) => cancellation.Cancel();
+            FormClosed += (_, __) =>
+            {
+                formCancellation.Cancel();
+                attemptCancellation?.Cancel();
+            };
             countdown.Tick += (_, __) => UpdateCountdown();
             Paint += ModernUi.PaintGlassBackground;
         }
@@ -65,8 +77,10 @@ namespace Steam_Desktop_Authenticator
             if (disposing)
             {
                 countdown.Dispose();
-                cancellation.Cancel();
-                cancellation.Dispose();
+                formCancellation.Cancel();
+                attemptCancellation?.Cancel();
+                attemptCancellation?.Dispose();
+                formCancellation.Dispose();
                 service?.Dispose();
                 qrCode.Image?.Dispose();
             }
@@ -75,29 +89,66 @@ namespace Steam_Desktop_Authenticator
 
         private async Task StartPairingAsync()
         {
+            int currentAttempt = ++attemptId;
+            countdown.Stop();
+            restart.Enabled = false;
+            attemptCancellation?.Cancel();
+            attemptCancellation?.Dispose();
+            service?.Dispose();
+            service = null;
+            Image previousImage = qrCode.Image;
+            qrCode.Image = null;
+            previousImage?.Dispose();
+
+            attemptCancellation = CancellationTokenSource.CreateLinkedTokenSource(formCancellation.Token);
             try
             {
                 service = new LocalCloudPairingService();
                 qrCode.Image = CreateQrBitmap(service.PairingUri, 280, 280);
                 countdown.Start();
                 UpdateCountdown();
-                PairingResult = await service.WaitForResultAsync(cancellation.Token);
+                PairingResult = await service.WaitForResultAsync(attemptCancellation.Token);
                 DialogResult = DialogResult.OK;
                 Close();
             }
             catch (OperationCanceledException)
             {
-                if (!IsDisposed) status.Text = Localizer.Choose("Pairing expired.", "Время сопряжения истекло.");
+                if (!IsDisposed && currentAttempt == attemptId && !formCancellation.IsCancellationRequested)
+                {
+                    ExpireCurrentQr();
+                }
             }
             catch (Exception ex)
             {
-                if (!IsDisposed) MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (!IsDisposed && currentAttempt == attemptId)
+                {
+                    ExpireCurrentQr();
+                    MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
+            finally
+            {
+                if (!IsDisposed && currentAttempt == attemptId)
+                {
+                    restart.Enabled = true;
+                }
+            }
+        }
+
+        private void ExpireCurrentQr()
+        {
+            countdown.Stop();
+            service?.Dispose();
+            service = null;
+            Image expiredImage = qrCode.Image;
+            qrCode.Image = null;
+            expiredImage?.Dispose();
+            status.Text = Localizer.Choose("QR expired. Create a new QR.", "Срок QR истёк. Создайте новый QR.");
         }
 
         private void UpdateCountdown()
         {
-            int seconds = service == null ? 120 : Math.Max(0, (int)Math.Ceiling((service.ExpiresUtc - DateTime.UtcNow).TotalSeconds));
+            int seconds = service == null ? 0 : Math.Max(0, (int)Math.Ceiling((service.ExpiresUtc - DateTime.UtcNow).TotalSeconds));
             status.Text = Localizer.Choose($"Waiting for phone... {seconds}s", $"Ожидание телефона... {seconds} сек.");
         }
 

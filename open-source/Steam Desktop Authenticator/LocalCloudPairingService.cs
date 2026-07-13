@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -24,15 +26,19 @@ namespace Steam_Desktop_Authenticator
     internal sealed class LocalCloudPairingService : IDisposable
     {
         private const int MaxFrameSize = 64 * 1024;
+        private const string RelayEndpoint = "https://sdaplusplus-pairing-relay.eeswrtdtg4t5.workers.dev";
         private static readonly byte[] HkdfInfo = Encoding.UTF8.GetBytes("SDA++ local pairing v1");
+        private static readonly HttpClient RelayClient = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
         private readonly TcpListener listener;
         private readonly ECDiffieHellman keyAgreement;
         private readonly byte[] sessionId;
+        private readonly byte[] relayToken;
         private readonly CancellationTokenSource lifetime = new CancellationTokenSource(TimeSpan.FromMinutes(2));
 
         public LocalCloudPairingService()
         {
             sessionId = RandomNumberGenerator.GetBytes(16);
+            relayToken = RandomNumberGenerator.GetBytes(32);
             keyAgreement = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
             listener = new TcpListener(IPAddress.Any, 0);
             listener.Start();
@@ -46,9 +52,97 @@ namespace Steam_Desktop_Authenticator
         public async Task<CloudPairingResult> WaitForResultAsync(CancellationToken cancellationToken)
         {
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, cancellationToken);
-            using TcpClient client = await listener.AcceptTcpClientAsync(linked.Token);
+            Task<CloudPairingResult> localTask = WaitForLocalResultAsync(linked.Token);
+            Task<CloudPairingResult> relayTask = WaitForRelayResultAsync(linked.Token);
+            Task<CloudPairingResult> completed = await Task.WhenAny(localTask, relayTask);
+            try
+            {
+                return await completed;
+            }
+            finally
+            {
+                linked.Cancel();
+            }
+        }
+
+        private async Task<CloudPairingResult> WaitForLocalResultAsync(CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                using TcpClient client = await listener.AcceptTcpClientAsync(cancellationToken);
+                using CancellationTokenSource clientTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                clientTimeout.CancelAfter(TimeSpan.FromSeconds(15));
+                try
+                {
+                    return await ReceiveResultAsync(client, clientTimeout.Token);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // Ignore a stalled LAN probe and keep the one-time listener available.
+                }
+                catch (Exception ex) when (ex is EndOfStreamException || ex is InvalidDataException ||
+                                           ex is JsonException || ex is CryptographicException ||
+                                           ex is InvalidOperationException || ex is FormatException)
+                {
+                    // An invalid connection must not consume the visible pairing QR.
+                }
+            }
+        }
+
+        private async Task<CloudPairingResult> WaitForRelayResultAsync(CancellationToken cancellationToken)
+        {
+            string relayUrl = RelayEndpoint.TrimEnd('/') + "/v1/pair/" + Base64UrlEncode(sessionId);
+            string token = Base64UrlEncode(relayToken);
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, relayUrl);
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    using HttpResponseMessage response = await RelayClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken);
+                    if (response.StatusCode == HttpStatusCode.NoContent)
+                    {
+                        await Task.Delay(1000, cancellationToken);
+                        continue;
+                    }
+                    if (response.StatusCode == HttpStatusCode.Gone)
+                        throw new OperationCanceledException("The relay pairing session expired.", cancellationToken);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        byte[] frame = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                        if (frame.Length <= 0 || frame.Length > MaxFrameSize)
+                            throw new InvalidDataException("Invalid relay pairing frame size.");
+                        return DecryptEnvelope(frame);
+                    }
+                }
+                catch (HttpRequestException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // Internet relay is optional; keep polling while LAN pairing remains active.
+                }
+                await Task.Delay(1500, cancellationToken);
+            }
+        }
+
+        private async Task<CloudPairingResult> ReceiveResultAsync(TcpClient client, CancellationToken cancellationToken)
+        {
             using NetworkStream stream = client.GetStream();
-            byte[] frame = await ReadFrameAsync(stream, linked.Token);
+            byte[] frame = await ReadFrameAsync(stream, cancellationToken);
+            try
+            {
+                CloudPairingResult result = DecryptEnvelope(frame);
+                await WriteFrameAsync(stream, Encoding.UTF8.GetBytes("{\"ok\":true}"), cancellationToken);
+                return result;
+            }
+            catch
+            {
+                try { await WriteFrameAsync(stream, Encoding.UTF8.GetBytes("{\"ok\":false}"), cancellationToken); } catch { }
+                throw;
+            }
+        }
+
+        private CloudPairingResult DecryptEnvelope(byte[] frame)
+        {
             PairingEnvelope envelope = JsonConvert.DeserializeObject<PairingEnvelope>(Encoding.UTF8.GetString(frame));
             if (envelope == null || envelope.Version != 1 || !FixedTimeEquals(envelope.SessionId, Base64UrlEncode(sessionId)))
             {
@@ -71,14 +165,7 @@ namespace Steam_Desktop_Authenticator
                 using AesGcm aes = new AesGcm(aesKey, 16);
                 aes.Decrypt(nonce, ciphertext, tag, plaintext, sessionId);
                 PairingPayload payload = JsonConvert.DeserializeObject<PairingPayload>(Encoding.UTF8.GetString(plaintext));
-                CloudPairingResult result = ValidatePayload(payload);
-                await WriteFrameAsync(stream, Encoding.UTF8.GetBytes("{\"ok\":true}"), linked.Token);
-                return result;
-            }
-            catch
-            {
-                try { await WriteFrameAsync(stream, Encoding.UTF8.GetBytes("{\"ok\":false}"), linked.Token); } catch { }
-                throw;
+                return ValidatePayload(payload);
             }
             finally
             {
@@ -95,6 +182,7 @@ namespace Steam_Desktop_Authenticator
             keyAgreement.Dispose();
             lifetime.Dispose();
             CryptographicOperations.ZeroMemory(sessionId);
+            CryptographicOperations.ZeroMemory(relayToken);
         }
 
         private string BuildPairingUri()
@@ -106,6 +194,8 @@ namespace Steam_Desktop_Authenticator
                 sid = Base64UrlEncode(sessionId),
                 port,
                 hosts = GetLanAddresses(),
+                relay = RelayEndpoint,
+                relay_token = Base64UrlEncode(relayToken),
                 pk = Convert.ToBase64String(keyAgreement.ExportSubjectPublicKeyInfo()),
                 exp = new DateTimeOffset(ExpiresUtc).ToUnixTimeSeconds()
             };
