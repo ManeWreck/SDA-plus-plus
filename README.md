@@ -12,7 +12,7 @@
   <img alt="Windows" src="https://img.shields.io/badge/Platform-Windows%2010%2B-2d6cdf" />
   <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-0f172a" />
   <img alt="Build" src="https://img.shields.io/badge/Build-Release-1f7a4f" />
-  <img alt="Version" src="https://img.shields.io/badge/Version-1.6.0--pairing--preview-668cff" />
+  <img alt="Version" src="https://img.shields.io/badge/Version-1.6.0-668cff" />
 </p>
 
 ![Selected account](./docs/selected-account.png)
@@ -157,11 +157,11 @@ Project page: [SDA++ for Steam Guard on GitHub Pages](https://manewreck.github.i
 
 Current release asset:
 
-- `SDA++-1.5.0-portable.zip`
+- `SDA++-1.6.0-portable.zip`
 
 ## Quick Start
 
-1. Download `SDA++-1.5.0-portable.zip` from the Releases section.
+1. Download `SDA++-1.6.0-portable.zip` from the Releases section.
 2. Extract the archive.
 3. Run `SDA++.exe`.
 4. Create or import your Steam Guard account.
