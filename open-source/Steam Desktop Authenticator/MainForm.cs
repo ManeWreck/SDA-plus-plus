@@ -2203,7 +2203,7 @@ namespace Steam_Desktop_Authenticator
                     return;
                 }
 
-                updatePageUrl = result.ReleaseUrl;
+                updatePageUrl = result.DownloadUrl;
                 labelUpdate.Text = Localizer.Choose($"Update v{result.LatestVersionText}", $"Обновление v{result.LatestVersionText}");
                 labelUpdate.Size = new Size(130, 16);
                 lblFooterKofi.Location = new Point(150, lblFooterKofi.Location.Y);
@@ -2217,11 +2217,27 @@ namespace Steam_Desktop_Authenticator
                         $"Доступна версия {result.LatestVersionText}. Нажмите ссылку обновления в SDA++, чтобы скачать её.");
                     trayIcon.BalloonTipIcon = ToolTipIcon.Info;
                     trayIcon.ShowBalloonTip(5000);
+
+                    DialogResult openDownload = MessageBox.Show(
+                        this,
+                        Localizer.Choose(
+                            $"SDA++ {result.LatestVersionText} is available.\n\nDownload the portable ZIP now? Your maFiles are not changed by downloading the update.",
+                            $"Доступна версия SDA++ {result.LatestVersionText}.\n\nСкачать portable ZIP сейчас? Загрузка обновления не изменяет ваши maFiles."),
+                        Localizer.Choose("SDA++ update available", "Доступно обновление SDA++"),
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Information);
+                    if (openDownload == DialogResult.Yes)
+                    {
+                        Process.Start(new ProcessStartInfo(result.DownloadUrl) { UseShellExecute = true });
+                    }
                 }
             }
             catch
             {
                 // Update checks must never interrupt Steam Guard or account workflows.
+                labelUpdate.Text = Localizer.Choose("Check updates", "Проверить обновления");
+                labelUpdate.Size = new Size(130, 16);
+                updatePageUrl = Branding.GithubReleasesUrl;
             }
             finally
             {
