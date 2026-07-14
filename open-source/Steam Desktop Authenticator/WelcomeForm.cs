@@ -42,6 +42,10 @@ namespace Steam_Desktop_Authenticator
             btnJustStart.ForeColor = Color.White;
             btnJustStart.FlatAppearance.BorderColor = Branding.Accent;
             ModernUi.RoundButton(btnJustStart, true);
+            btnPairMobile.BackColor = Branding.Accent;
+            btnPairMobile.ForeColor = Color.White;
+            btnPairMobile.FlatAppearance.BorderColor = Branding.Accent;
+            ModernUi.RoundButton(btnPairMobile, true);
             label1.ForeColor = Branding.HeadingText;
             label2.ForeColor = Branding.MutedText;
             Paint += ModernUi.PaintGlassBackground;
@@ -54,6 +58,62 @@ namespace Steam_Desktop_Authenticator
             label2.Text = Localizer.Choose("Choose how you want to get started:", "Выберите, как начать работу:");
             btnImportConfig.Text = Localizer.Choose("Import an existing SDA / SDA++ setup from another folder on this PC.", "Импортировать существующую настройку SDA / SDA++\r\nиз другой папки на этом ПК.");
             btnJustStart.Text = Localizer.Choose("Start fresh with QR-focused tools\r\nand sign into my Steam account(s).", "Начать с нуля с упором на QR-инструменты\r\nи войти в мои аккаунты Steam.");
+            btnPairMobile.Text = Localizer.Choose("Connect cloud from SDA++ Mobile with one scan", "Подключить облако из SDA++ Mobile одним сканированием");
+        }
+
+        private async void btnPairMobile_Click(object sender, EventArgs e)
+        {
+            using CloudPairingForm pairing = new CloudPairingForm();
+            if (pairing.ShowDialog(this) != DialogResult.OK || pairing.PairingResult == null)
+                return;
+
+            CloudPairingResult result = pairing.PairingResult;
+            man.CloudProvider = CloudProvider.WebDav;
+            man.WebDavUrl = result.Url;
+            man.WebDavUsername = result.Login;
+            man.WebDavRemotePath = result.RemotePath;
+            new CloudSecretStore().Save("webdav-password", result.Password);
+            man.Save();
+
+            try
+            {
+                var provider = new WebDavStorageProvider(result.Url, result.Login, result.Password, result.RemotePath);
+                await provider.TestConnectionAsync();
+                DialogResult pull = MessageBox.Show(
+                    Localizer.Choose("SDA++ Mobile connected securely. Pull the encrypted vault from WebDAV now?", "SDA++ Mobile безопасно подключён. Загрузить зашифрованное хранилище из WebDAV сейчас?"),
+                    Branding.FullAppName, MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                if (pull == DialogResult.Yes)
+                {
+                    CloudSyncService service = new CloudSyncService();
+                    CloudSyncService.CloudPullPlan plan = await service.PreparePullAsync(provider, false);
+                    DialogResult confirm = MessageBox.Show(
+                        Localizer.Choose($"Cloud contains {plan.RemoteAccountCount} account(s). Continue with the safe restore?", $"В облаке найдено аккаунтов: {plan.RemoteAccountCount}. Продолжить безопасное восстановление?"),
+                        Branding.FullAppName, MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    if (confirm == DialogResult.Yes)
+                    {
+                        service.CommitPull(plan);
+                        man = Manifest.GetManifest(true);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(Localizer.Choose("Cloud settings were saved, but the connection or restore failed:\n", "Настройки облака сохранены, но подключение или восстановление не удалось:\n") + ex.Message,
+                    Branding.FullAppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                result.Password = string.Empty;
+            }
+
+            // A restored remote manifest may contain old cloud settings, so keep the newly paired endpoint.
+            man.CloudProvider = CloudProvider.WebDav;
+            man.WebDavUrl = result.Url;
+            man.WebDavUsername = result.Login;
+            man.WebDavRemotePath = result.RemotePath;
+            man.FirstRun = false;
+            man.Save();
+            showMainForm();
         }
 
         private void btnJustStart_Click(object sender, EventArgs e)

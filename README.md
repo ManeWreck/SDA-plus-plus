@@ -12,7 +12,7 @@
   <img alt="Windows" src="https://img.shields.io/badge/Platform-Windows%2010%2B-2d6cdf" />
   <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-0f172a" />
   <img alt="Build" src="https://img.shields.io/badge/Build-Release-1f7a4f" />
-  <img alt="Version" src="https://img.shields.io/badge/Version-1.5.0-668cff" />
+  <img alt="Version" src="https://img.shields.io/badge/Version-1.6.0--pairing--preview-668cff" />
 </p>
 
 ![Selected account](./docs/selected-account.png)
@@ -51,6 +51,13 @@ Compared to the original SDA:
 - All-account confirmations with account-safe approve and reject actions
 - Automatic update checks at startup and every six hours
 - Validated cloud restore with preflight checks, local backup, atomic replacement, and automatic rollback
+- One-scan encrypted WebDAV setup from SDA++ Mobile on the first-run screen
+
+### One-scan mobile pairing
+
+On a fresh installation, choose **Connect cloud from SDA++ Mobile with one scan** and scan the two-minute QR code from the unlocked SDA++ Mobile app. The phone asks for explicit confirmation before sending the saved WebDAV URL, login, app password, and cloud folder. SDA++ tries the local network first and automatically falls back to its HTTPS relay when direct LAN access is unavailable.
+
+Pairing uses ephemeral P-256 ECDH and AES-256-GCM. Steam secrets, account files, and vault keys are never placed in the QR or pairing payload. The relay only sees ciphertext, limits each random session to 64 KiB and two minutes, and deletes the payload after its first successful download. The received password is protected with Windows DPAPI, after which SDA++ offers its validated backup-first Cloud Pull. Manual WebDAV setup remains available.
 
 ### Safe cloud restore
 
