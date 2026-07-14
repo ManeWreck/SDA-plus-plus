@@ -1,6 +1,7 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.Net.Http;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -20,6 +21,11 @@ namespace Steam_Desktop_Authenticator
             JObject release = JObject.Parse(json);
             string tag = release.Value<string>("tag_name") ?? string.Empty;
             string releaseUrl = release.Value<string>("html_url") ?? Branding.GithubReleasesUrl;
+            string downloadUrl = release["assets"]?
+                .Children<JObject>()
+                .FirstOrDefault(asset => (asset.Value<string>("name") ?? string.Empty)
+                    .EndsWith("-portable.zip", StringComparison.OrdinalIgnoreCase))?
+                .Value<string>("browser_download_url") ?? releaseUrl;
 
             Version installed = ParseVersion(currentVersion);
             Version latest = ParseVersion(tag);
@@ -29,7 +35,8 @@ namespace Steam_Desktop_Authenticator
                 CurrentVersion = installed,
                 LatestVersion = latest,
                 LatestVersionText = latest.ToString(3),
-                ReleaseUrl = releaseUrl
+                ReleaseUrl = releaseUrl,
+                DownloadUrl = downloadUrl
             };
         }
 
@@ -56,5 +63,6 @@ namespace Steam_Desktop_Authenticator
         public Version LatestVersion { get; set; }
         public string LatestVersionText { get; set; }
         public string ReleaseUrl { get; set; }
+        public string DownloadUrl { get; set; }
     }
 }
