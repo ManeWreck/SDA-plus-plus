@@ -73,7 +73,17 @@ namespace Steam_Desktop_Authenticator
         {
             try
             {
-                service = new DesktopCloudExportPairingService(settings);
+                Manifest manifest = Manifest.GetManifest();
+                string endpoint = manifest.PairingRelayMode == PairingRelayMode.Personal
+                    ? manifest.PairingRelayUrl
+                    : PairingRelayProfile.ManagedEndpoint;
+                endpoint = PairingRelayProfile.NormalizeEndpoint(endpoint);
+                if (manifest.PairingRelayMode == PairingRelayMode.Personal)
+                {
+                    status.Text = Localizer.Choose("Checking personal Worker...", "Проверка личного Worker...");
+                    await PairingRelayProfile.VerifyAsync(endpoint, cancellation.Token);
+                }
+                service = new DesktopCloudExportPairingService(settings, endpoint);
                 qr.Image = CreateQrBitmap(service.PairingUri, 280, 280);
                 code.Text = service.VerificationCode;
                 status.Text = Localizer.Choose("Waiting for phone...", "Ожидание телефона...");

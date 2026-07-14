@@ -17,9 +17,10 @@ namespace Steam_Desktop_Authenticator
     internal sealed class DesktopCloudExportPairingService : IDisposable
     {
         private const int MaxFrameSize = 64 * 1024;
-        private const string RelayEndpoint = "https://sdaplusplus-pairing-relay.eeswrtdtg4t5.workers.dev";
         private static readonly HttpClient RelayClient = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
         private readonly CloudPairingResult settings;
+        private readonly string relayEndpoint;
+        private readonly DeviceIdentityInfo deviceIdentity;
         private readonly TcpListener listener;
         private readonly ECDiffieHellman keyAgreement;
         private readonly byte[] requestSessionId = RandomNumberGenerator.GetBytes(16);
@@ -28,9 +29,11 @@ namespace Steam_Desktop_Authenticator
         private readonly byte[] responseToken = RandomNumberGenerator.GetBytes(32);
         private readonly CancellationTokenSource lifetime = new CancellationTokenSource(TimeSpan.FromMinutes(2));
 
-        public DesktopCloudExportPairingService(CloudPairingResult settings)
+        public DesktopCloudExportPairingService(CloudPairingResult settings, string relayEndpoint)
         {
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            this.relayEndpoint = PairingRelayProfile.NormalizeEndpoint(relayEndpoint);
+            deviceIdentity = DeviceIdentityStore.GetInfo();
             keyAgreement = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
             listener = new TcpListener(IPAddress.Any, 0);
             listener.Start();
@@ -93,7 +96,7 @@ namespace Steam_Desktop_Authenticator
             }
         }
 
-        private static async Task<byte[]> PollRelayAsync(byte[] sid, byte[] tokenBytes, CancellationToken token)
+        private async Task<byte[]> PollRelayAsync(byte[] sid, byte[] tokenBytes, CancellationToken token)
         {
             while (true)
             {
@@ -170,19 +173,30 @@ namespace Steam_Desktop_Authenticator
 
         private string BuildPairingUri()
         {
+            string sessionIdText = Base64UrlEncode(requestSessionId);
+            string ephemeralPublicKey = Convert.ToBase64String(keyAgreement.ExportSubjectPublicKeyInfo());
+            long expiresAt = new DateTimeOffset(ExpiresUtc).ToUnixTimeSeconds();
+            byte[] identityProof = PairingIdentityProof.CanonicalPayload(sessionIdText, ephemeralPublicKey, expiresAt);
+            string identitySignature;
+            try { identitySignature = DeviceIdentityStore.Sign(identityProof); }
+            finally { CryptographicOperations.ZeroMemory(identityProof); }
             var descriptor = new
             {
                 v = 2,
                 direction = "to-mobile",
-                sid = Base64UrlEncode(requestSessionId),
+                sid = sessionIdText,
                 port = ((IPEndPoint)listener.LocalEndpoint).Port,
                 hosts = GetLanAddresses(),
-                relay = RelayEndpoint,
+                relay = relayEndpoint,
                 relay_token = Base64UrlEncode(requestToken),
                 response_sid = Base64UrlEncode(responseSessionId),
                 response_token = Base64UrlEncode(responseToken),
-                pk = Convert.ToBase64String(keyAgreement.ExportSubjectPublicKeyInfo()),
-                exp = new DateTimeOffset(ExpiresUtc).ToUnixTimeSeconds()
+                pk = ephemeralPublicKey,
+                exp = expiresAt,
+                device_id = deviceIdentity.DeviceId,
+                device_pk = deviceIdentity.PublicKeyDerBase64Url,
+                device_key_protection = deviceIdentity.Protection,
+                device_signature = identitySignature
             };
             return "sdapp-pair://v2?p=" + Base64UrlEncode(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(descriptor)));
         }
@@ -215,7 +229,7 @@ namespace Steam_Desktop_Authenticator
             finally { CryptographicOperations.ZeroMemory(random); }
         }
 
-        private static string RelayUrl(byte[] sid) => RelayEndpoint + "/v1/pair/" + Base64UrlEncode(sid);
+        private string RelayUrl(byte[] sid) => relayEndpoint + "/v1/pair/" + Base64UrlEncode(sid);
         private static string Base64UrlEncode(byte[] value) => Convert.ToBase64String(value).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
         private static async Task<byte[]> ReadFrameAsync(Stream stream, CancellationToken token)
