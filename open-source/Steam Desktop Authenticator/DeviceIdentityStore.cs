@@ -49,7 +49,10 @@ namespace Steam_Desktop_Authenticator
             if (payload == null) throw new ArgumentNullException(nameof(payload));
             using CngKey key = OpenOrCreateKey();
             using ECDsaCng signer = new ECDsaCng(key);
-            return Base64UrlEncode(signer.SignData(payload, HashAlgorithmName.SHA256));
+            return Base64UrlEncode(signer.SignData(
+                payload,
+                HashAlgorithmName.SHA256,
+                DSASignatureFormat.Rfc3279DerSequence));
         }
 
         public static bool Verify(string publicKeyDerBase64Url, byte[] payload, string signatureBase64Url)
@@ -58,7 +61,11 @@ namespace Steam_Desktop_Authenticator
             {
                 using ECDsa verifier = ECDsa.Create();
                 verifier.ImportSubjectPublicKeyInfo(Base64UrlDecode(publicKeyDerBase64Url), out _);
-                return verifier.VerifyData(payload, Base64UrlDecode(signatureBase64Url), HashAlgorithmName.SHA256);
+                return verifier.VerifyData(
+                    payload,
+                    Base64UrlDecode(signatureBase64Url),
+                    HashAlgorithmName.SHA256,
+                    DSASignatureFormat.Rfc3279DerSequence);
             }
             catch (Exception ex) when (ex is FormatException || ex is CryptographicException || ex is ArgumentException)
             {
