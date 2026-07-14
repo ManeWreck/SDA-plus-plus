@@ -15,6 +15,9 @@ namespace Steam_Desktop_Authenticator
     {
         private readonly PictureBox qrCode = new PictureBox();
         private readonly Label description = new Label();
+        private readonly Label relayLabel = new Label();
+        private readonly ComboBox relayMode = new ComboBox();
+        private readonly TextBox relayUrl = new TextBox();
         private readonly Label status = new Label();
         private readonly Label verificationCode = new Label();
         private readonly Button restart = new Button();
@@ -30,7 +33,7 @@ namespace Steam_Desktop_Authenticator
         public CloudPairingForm()
         {
             Text = Localizer.Choose("Connect SDA++ Mobile", "Подключить SDA++ Mobile");
-            ClientSize = new Size(390, 540);
+            ClientSize = new Size(390, 640);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
@@ -39,35 +42,59 @@ namespace Steam_Desktop_Authenticator
             Icon = Branding.LoadAppIcon();
             ModernUi.AttachWindowChrome(this, false, false);
 
-            description.SetBounds(24, 54, 342, 54);
+            relayLabel.SetBounds(24, 50, 342, 20);
+            relayLabel.Text = Localizer.Choose("Pairing relay", "Pairing relay");
+            relayLabel.ForeColor = Branding.MutedText;
+
+            relayMode.SetBounds(24, 72, 342, 28);
+            relayMode.DropDownStyle = ComboBoxStyle.DropDownList;
+            relayMode.Items.AddRange(new object[]
+            {
+                Localizer.Choose("SDA++ Relay", "SDA++ Relay"),
+                Localizer.Choose("Personal Cloudflare Worker", "Личный Cloudflare Worker")
+            });
+
+            relayUrl.SetBounds(24, 106, 342, 28);
+            relayUrl.PlaceholderText = "https://your-relay.workers.dev";
+            relayUrl.BackColor = Branding.AccentDark;
+            relayUrl.ForeColor = Branding.HeadingText;
+            relayUrl.BorderStyle = BorderStyle.FixedSingle;
+
+            Manifest manifest = Manifest.GetManifest();
+            relayMode.SelectedIndex = manifest.PairingRelayMode == PairingRelayMode.Personal ? 1 : 0;
+            relayUrl.Text = manifest.PairingRelayUrl;
+            relayMode.SelectedIndexChanged += (_, __) => UpdateRelayControls();
+
+            description.SetBounds(24, 140, 342, 54);
             description.TextAlign = ContentAlignment.MiddleCenter;
             description.ForeColor = Branding.MutedText;
             description.Text = Localizer.Choose("Scan in SDA++ Mobile, then enter the one-time code below. LAN is preferred; encrypted relay is used when needed.", "Сканируйте в SDA++ Mobile, затем введите код ниже. Предпочтительна локальная сеть; при необходимости используется зашифрованный relay.");
 
-            qrCode.SetBounds(55, 116, 280, 280);
+            qrCode.SetBounds(55, 196, 280, 280);
             qrCode.SizeMode = PictureBoxSizeMode.Zoom;
             qrCode.BackColor = Color.White;
 
-            verificationCode.SetBounds(24, 402, 342, 38);
+            verificationCode.SetBounds(24, 482, 342, 38);
             verificationCode.TextAlign = ContentAlignment.MiddleCenter;
             verificationCode.Font = new Font("Consolas", 18F, FontStyle.Bold);
             verificationCode.ForeColor = Branding.Accent;
 
-            status.SetBounds(24, 442, 342, 28);
+            status.SetBounds(24, 522, 342, 28);
             status.TextAlign = ContentAlignment.MiddleCenter;
             status.ForeColor = Branding.MutedText;
 
-            restart.SetBounds(40, 487, 145, 34);
+            restart.SetBounds(40, 585, 145, 34);
             restart.Text = Localizer.Choose("New QR", "Новый QR");
             restart.Click += async (_, __) => await StartPairingAsync();
             ModernUi.RoundButton(restart, true);
 
-            cancel.SetBounds(205, 487, 145, 34);
+            cancel.SetBounds(205, 585, 145, 34);
             cancel.Text = Localizer.Choose("Cancel", "Отмена");
             cancel.Click += (_, __) => Close();
             ModernUi.RoundButton(cancel, false);
 
-            Controls.AddRange(new Control[] { description, qrCode, verificationCode, status, restart, cancel });
+            Controls.AddRange(new Control[] { relayLabel, relayMode, relayUrl, description, qrCode, verificationCode, status, restart, cancel });
+            UpdateRelayControls();
             Shown += async (_, __) => await StartPairingAsync();
             FormClosed += (_, __) =>
             {
@@ -109,7 +136,24 @@ namespace Steam_Desktop_Authenticator
             attemptCancellation = CancellationTokenSource.CreateLinkedTokenSource(formCancellation.Token);
             try
             {
-                service = new LocalCloudPairingService();
+                Manifest manifest = Manifest.GetManifest();
+                bool personalRelay = relayMode.SelectedIndex == 1;
+                string endpoint = personalRelay ? relayUrl.Text : PairingRelayProfile.ManagedEndpoint;
+                endpoint = PairingRelayProfile.NormalizeEndpoint(endpoint);
+                if (personalRelay)
+                {
+                    status.Text = Localizer.Choose("Checking personal Worker...", "Проверка личного Worker...");
+                    await PairingRelayProfile.VerifyAsync(endpoint, attemptCancellation.Token);
+                    manifest.PairingRelayMode = PairingRelayMode.Personal;
+                    manifest.PairingRelayUrl = endpoint;
+                }
+                else
+                {
+                    manifest.PairingRelayMode = PairingRelayMode.Managed;
+                }
+                manifest.Save();
+
+                service = new LocalCloudPairingService(endpoint);
                 qrCode.Image = CreateQrBitmap(service.PairingUri, 280, 280);
                 verificationCode.Text = service.VerificationCode;
                 countdown.Start();
@@ -140,6 +184,13 @@ namespace Steam_Desktop_Authenticator
                     restart.Enabled = true;
                 }
             }
+        }
+
+        private void UpdateRelayControls()
+        {
+            bool personal = relayMode.SelectedIndex == 1;
+            relayUrl.Enabled = personal;
+            relayUrl.BackColor = personal ? Branding.AccentDark : Branding.CardBackground;
         }
 
         private void ExpireCurrentQr()

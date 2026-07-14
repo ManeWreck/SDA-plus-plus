@@ -26,16 +26,17 @@ namespace Steam_Desktop_Authenticator
     internal sealed class LocalCloudPairingService : IDisposable
     {
         private const int MaxFrameSize = 64 * 1024;
-        private const string RelayEndpoint = "https://sdaplusplus-pairing-relay.eeswrtdtg4t5.workers.dev";
         private static readonly HttpClient RelayClient = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+        private readonly string relayEndpoint;
         private readonly TcpListener listener;
         private readonly ECDiffieHellman keyAgreement;
         private readonly byte[] sessionId;
         private readonly byte[] relayToken;
         private readonly CancellationTokenSource lifetime = new CancellationTokenSource(TimeSpan.FromMinutes(2));
 
-        public LocalCloudPairingService()
+        public LocalCloudPairingService(string relayEndpoint)
         {
+            this.relayEndpoint = PairingRelayProfile.NormalizeEndpoint(relayEndpoint);
             sessionId = RandomNumberGenerator.GetBytes(16);
             relayToken = RandomNumberGenerator.GetBytes(32);
             keyAgreement = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
@@ -92,7 +93,7 @@ namespace Steam_Desktop_Authenticator
 
         private async Task<CloudPairingResult> WaitForRelayResultAsync(CancellationToken cancellationToken)
         {
-            string relayUrl = RelayEndpoint.TrimEnd('/') + "/v1/pair/" + Base64UrlEncode(sessionId);
+            string relayUrl = relayEndpoint + "/v1/pair/" + Base64UrlEncode(sessionId);
             string token = Base64UrlEncode(relayToken);
             while (true)
             {
@@ -197,7 +198,7 @@ namespace Steam_Desktop_Authenticator
                 sid = Base64UrlEncode(sessionId),
                 port,
                 hosts = GetLanAddresses(),
-                relay = RelayEndpoint,
+                relay = relayEndpoint,
                 relay_token = Base64UrlEncode(relayToken),
                 pk = Convert.ToBase64String(keyAgreement.ExportSubjectPublicKeyInfo()),
                 exp = new DateTimeOffset(ExpiresUtc).ToUnixTimeSeconds()

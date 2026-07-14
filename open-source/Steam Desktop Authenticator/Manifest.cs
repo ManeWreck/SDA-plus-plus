@@ -19,6 +19,12 @@ namespace Steam_Desktop_Authenticator
         GoogleDrive = 4
     }
 
+    public enum PairingRelayMode
+    {
+        Managed = 0,
+        Personal = 1
+    }
+
     public class Manifest
     {
         [JsonProperty("encrypted")]
@@ -149,6 +155,12 @@ namespace Steam_Desktop_Authenticator
 
         [JsonProperty("ui_language")]
         public AppLanguage UiLanguage { get; set; } = AppLanguage.English;
+
+        [JsonProperty("pairing_relay_mode")]
+        public PairingRelayMode PairingRelayMode { get; set; } = PairingRelayMode.Managed;
+
+        [JsonProperty("pairing_relay_url")]
+        public string PairingRelayUrl { get; set; } = string.Empty;
 
         private static Manifest _manifest { get; set; }
 
@@ -646,6 +658,7 @@ namespace Steam_Desktop_Authenticator
             GoogleDriveRemotePath = string.IsNullOrWhiteSpace(GoogleDriveRemotePath) ? "SDAppVault" : GoogleDriveRemotePath.Trim();
             CredentialsStoragePath = string.IsNullOrWhiteSpace(CredentialsStoragePath) ? @"maFiles\credentials.secure.json" : CredentialsStoragePath.Trim();
             CredentialsCloudRemotePath = string.IsNullOrWhiteSpace(CredentialsCloudRemotePath) ? "SDAppCredentials" : CredentialsCloudRemotePath.Trim();
+            PairingRelayUrl = PairingRelayUrl?.Trim().TrimEnd('/') ?? string.Empty;
 
             if (!Enum.IsDefined(typeof(CloudProvider), CloudProvider))
             {
@@ -660,6 +673,11 @@ namespace Steam_Desktop_Authenticator
             if (!System.Enum.IsDefined(typeof(AppLanguage), UiLanguage))
             {
                 UiLanguage = AppLanguage.English;
+            }
+
+            if (!Enum.IsDefined(typeof(PairingRelayMode), PairingRelayMode))
+            {
+                PairingRelayMode = PairingRelayMode.Managed;
             }
         }
 
