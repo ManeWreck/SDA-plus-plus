@@ -1,3 +1,14 @@
+# SDA++ 1.7.0
+
+SDA++ 1.7.0 adds secure bidirectional pairing with SDA++ Mobile.
+
+- Added **Account tools > Connect SDA++ Mobile**, available after first-run setup.
+- Added WebDAV settings transfer from phone to desktop and from desktop to phone.
+- Added a separate eight-character one-time verification code for every pairing session.
+- Upgraded pairing to protocol v2 with ephemeral P-256 ECDH and AES-256-GCM.
+- Kept WebDAV credentials out of QR codes; direct LAN transfer is preferred with encrypted HTTPS relay fallback.
+- Added complete English and Russian pairing UI.
+
 # SDA++ 1.5.0
 
 SDA++ 1.5.0 makes cloud restoration safer and adds reproducible release automation.

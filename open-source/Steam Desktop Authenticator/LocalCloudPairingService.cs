@@ -27,7 +27,6 @@ namespace Steam_Desktop_Authenticator
     {
         private const int MaxFrameSize = 64 * 1024;
         private const string RelayEndpoint = "https://sdaplusplus-pairing-relay.eeswrtdtg4t5.workers.dev";
-        private static readonly byte[] HkdfInfo = Encoding.UTF8.GetBytes("SDA++ local pairing v1");
         private static readonly HttpClient RelayClient = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
         private readonly TcpListener listener;
         private readonly ECDiffieHellman keyAgreement;
@@ -42,11 +41,13 @@ namespace Steam_Desktop_Authenticator
             keyAgreement = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
             listener = new TcpListener(IPAddress.Any, 0);
             listener.Start();
+            VerificationCode = GenerateVerificationCode();
             ExpiresUtc = DateTime.UtcNow.AddMinutes(2);
             PairingUri = BuildPairingUri();
         }
 
         public string PairingUri { get; }
+        public string VerificationCode { get; }
         public DateTime ExpiresUtc { get; }
 
         public async Task<CloudPairingResult> WaitForResultAsync(CancellationToken cancellationToken)
@@ -144,7 +145,7 @@ namespace Steam_Desktop_Authenticator
         private CloudPairingResult DecryptEnvelope(byte[] frame)
         {
             PairingEnvelope envelope = JsonConvert.DeserializeObject<PairingEnvelope>(Encoding.UTF8.GetString(frame));
-            if (envelope == null || envelope.Version != 1 || !FixedTimeEquals(envelope.SessionId, Base64UrlEncode(sessionId)))
+            if (envelope == null || envelope.Version != 2 || !FixedTimeEquals(envelope.SessionId, Base64UrlEncode(sessionId)))
             {
                 throw new InvalidOperationException("The pairing response does not match this one-time session.");
             }
@@ -161,7 +162,8 @@ namespace Steam_Desktop_Authenticator
                 using ECDiffieHellman mobileKey = ECDiffieHellman.Create();
                 mobileKey.ImportSubjectPublicKeyInfo(mobilePublicKey, out _);
                 sharedSecret = keyAgreement.DeriveRawSecretAgreement(mobileKey.PublicKey);
-                aesKey = HkdfSha256(sharedSecret, sessionId, HkdfInfo, 32);
+                byte[] info = Encoding.UTF8.GetBytes("SDA++ local pairing v2|" + VerificationCode);
+                aesKey = HkdfSha256(sharedSecret, sessionId, info, 32);
                 using AesGcm aes = new AesGcm(aesKey, 16);
                 aes.Decrypt(nonce, ciphertext, tag, plaintext, sessionId);
                 PairingPayload payload = JsonConvert.DeserializeObject<PairingPayload>(Encoding.UTF8.GetString(plaintext));
@@ -190,7 +192,8 @@ namespace Steam_Desktop_Authenticator
             int port = ((IPEndPoint)listener.LocalEndpoint).Port;
             var descriptor = new
             {
-                v = 1,
+                v = 2,
+                direction = "to-desktop",
                 sid = Base64UrlEncode(sessionId),
                 port,
                 hosts = GetLanAddresses(),
@@ -200,7 +203,7 @@ namespace Steam_Desktop_Authenticator
                 exp = new DateTimeOffset(ExpiresUtc).ToUnixTimeSeconds()
             };
             string encoded = Base64UrlEncode(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(descriptor)));
-            return "sdapp-pair://v1?p=" + encoded;
+            return "sdapp-pair://v2?p=" + encoded;
         }
 
         private static string[] GetLanAddresses()
@@ -245,7 +248,7 @@ namespace Steam_Desktop_Authenticator
 
         private static CloudPairingResult ValidatePayload(PairingPayload payload)
         {
-            if (payload == null || payload.Version != 1 || !string.Equals(payload.Provider, "webdav", StringComparison.OrdinalIgnoreCase))
+            if (payload == null || payload.Version != 2 || !string.Equals(payload.Provider, "webdav", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Only WebDAV pairing is supported in this version.");
             if (!Uri.TryCreate(payload.Url, UriKind.Absolute, out Uri uri) || uri.Scheme != Uri.UriSchemeHttps)
                 throw new InvalidOperationException("The phone supplied an invalid WebDAV HTTPS URL.");
@@ -314,6 +317,20 @@ namespace Steam_Desktop_Authenticator
 
         private static string Base64UrlEncode(byte[] value) => Convert.ToBase64String(value).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         private static bool FixedTimeEquals(string left, string right) => CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(left ?? ""), Encoding.UTF8.GetBytes(right ?? ""));
+
+        private static string GenerateVerificationCode()
+        {
+            const string alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+            byte[] random = RandomNumberGenerator.GetBytes(8);
+            try
+            {
+                return new string(random.Select(value => alphabet[value % alphabet.Length]).ToArray());
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(random);
+            }
+        }
 
         private sealed class PairingEnvelope
         {
