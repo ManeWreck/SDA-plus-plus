@@ -9,7 +9,7 @@ namespace Steam_Desktop_Authenticator
         public CloudPairingHubForm()
         {
             Text = Localizer.Choose("Connect SDA++ Mobile", "Подключить SDA++ Mobile");
-            ClientSize = new Size(410, 254);
+            ClientSize = new Size(410, 304);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
@@ -37,6 +37,8 @@ namespace Steam_Desktop_Authenticator
                 Localizer.Choose("Phone → this PC", "Телефон → этот ПК"), 136, true);
             Button send = CreateButton(
                 Localizer.Choose("This PC → phone", "Этот ПК → телефон"), 180, false);
+            Button trustedDevices = CreateButton(
+                Localizer.Choose("Trusted devices", "Доверенные устройства"), 224, false);
 
             receive.Click += async (_, __) => await CloudPairingWorkflow.ReceiveFromMobileAsync(this);
             send.Click += (_, __) =>
@@ -52,8 +54,9 @@ namespace Steam_Desktop_Authenticator
                     MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             };
+            trustedDevices.Click += (_, __) => new DeviceRegistryForm().ShowDialog(this);
 
-            Controls.AddRange(new Control[] { title, hint, receive, send });
+            Controls.AddRange(new Control[] { title, hint, receive, send, trustedDevices });
             Paint += ModernUi.PaintGlassBackground;
         }
 
