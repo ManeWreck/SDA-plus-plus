@@ -43,6 +43,7 @@ namespace Steam_Desktop_Authenticator
         private readonly Button btnAccountMonitoring = new Button();
         private readonly LinkLabel lblFooterKofi = new LinkLabel();
         private readonly ToolStripMenuItem menuManageCredentials = new ToolStripMenuItem();
+        private readonly ToolStripMenuItem menuConnectMobile = new ToolStripMenuItem();
         private readonly ToolStripMenuItem menuAutoLoginAllAccounts = new ToolStripMenuItem();
         private readonly ToolStripMenuItem menuAccountMonitoring = new ToolStripMenuItem();
 
@@ -87,9 +88,11 @@ namespace Steam_Desktop_Authenticator
             Icon = Branding.LoadAppIcon();
             trayIcon.Icon = Icon;
             accountToolStripMenuItem.DropDownItems.Insert(1, menuManageCredentials);
-            accountToolStripMenuItem.DropDownItems.Insert(2, menuAutoLoginAllAccounts);
-            accountToolStripMenuItem.DropDownItems.Insert(3, menuAccountMonitoring);
+            accountToolStripMenuItem.DropDownItems.Insert(2, menuConnectMobile);
+            accountToolStripMenuItem.DropDownItems.Insert(3, menuAutoLoginAllAccounts);
+            accountToolStripMenuItem.DropDownItems.Insert(4, menuAccountMonitoring);
             menuManageCredentials.Click += menuManageCredentials_Click;
+            menuConnectMobile.Click += menuConnectMobile_Click;
             menuAutoLoginAllAccounts.Click += menuAutoLoginAllAccounts_Click;
             menuAccountMonitoring.Click += menuAccountMonitoring_Click;
             updateCheckTimer.Tick += async (sender, args) => await CheckForUpdatesAsync();
@@ -289,6 +292,7 @@ namespace Steam_Desktop_Authenticator
             menuQuit.Text = Localizer.Choose("Quit", "Выход");
             accountToolStripMenuItem.Text = Localizer.Choose("Account tools", "Инструменты аккаунта");
             menuManageCredentials.Text = Localizer.Choose("Manage login credentials", "Управление логинами");
+            menuConnectMobile.Text = Localizer.Choose("Connect SDA++ Mobile", "Подключить SDA++ Mobile");
             menuAutoLoginAllAccounts.Text = Localizer.Choose("Auto login all accounts", "Автовход для всех аккаунтов");
             menuAccountMonitoring.Text = Localizer.Choose("Account monitoring", "Мониторинг аккаунтов");
             btnNavAccount.Text = accountToolStripMenuItem.Text;
@@ -775,6 +779,15 @@ namespace Steam_Desktop_Authenticator
         private void menuManageCredentials_Click(object sender, EventArgs e)
         {
             using CredentialsManagerForm form = new CredentialsManagerForm();
+            form.ShowDialog(this);
+            manifest = Manifest.GetManifest(true);
+            loadAccountsList();
+            ApplyAccountFilter(currentAccount?.AccountName);
+        }
+
+        private void menuConnectMobile_Click(object sender, EventArgs e)
+        {
+            using CloudPairingHubForm form = new CloudPairingHubForm();
             form.ShowDialog(this);
             manifest = Manifest.GetManifest(true);
             loadAccountsList();

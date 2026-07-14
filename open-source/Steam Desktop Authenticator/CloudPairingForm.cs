@@ -16,6 +16,7 @@ namespace Steam_Desktop_Authenticator
         private readonly PictureBox qrCode = new PictureBox();
         private readonly Label description = new Label();
         private readonly Label status = new Label();
+        private readonly Label verificationCode = new Label();
         private readonly Button restart = new Button();
         private readonly Button cancel = new Button();
         private readonly System.Windows.Forms.Timer countdown = new System.Windows.Forms.Timer { Interval = 1000 };
@@ -29,7 +30,7 @@ namespace Steam_Desktop_Authenticator
         public CloudPairingForm()
         {
             Text = Localizer.Choose("Connect SDA++ Mobile", "Подключить SDA++ Mobile");
-            ClientSize = new Size(390, 500);
+            ClientSize = new Size(390, 540);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
@@ -41,27 +42,32 @@ namespace Steam_Desktop_Authenticator
             description.SetBounds(24, 54, 342, 54);
             description.TextAlign = ContentAlignment.MiddleCenter;
             description.ForeColor = Branding.MutedText;
-            description.Text = Localizer.Choose("Scan in SDA++ Mobile. Both devices must share a private network; allow SDA++ through Windows Firewall.", "Сканируйте в SDA++ Mobile. Устройства должны быть в одной частной сети; разрешите SDA++ в брандмауэре Windows.");
+            description.Text = Localizer.Choose("Scan in SDA++ Mobile, then enter the one-time code below. LAN is preferred; encrypted relay is used when needed.", "Сканируйте в SDA++ Mobile, затем введите код ниже. Предпочтительна локальная сеть; при необходимости используется зашифрованный relay.");
 
             qrCode.SetBounds(55, 116, 280, 280);
             qrCode.SizeMode = PictureBoxSizeMode.Zoom;
             qrCode.BackColor = Color.White;
 
-            status.SetBounds(24, 408, 342, 28);
+            verificationCode.SetBounds(24, 402, 342, 38);
+            verificationCode.TextAlign = ContentAlignment.MiddleCenter;
+            verificationCode.Font = new Font("Consolas", 18F, FontStyle.Bold);
+            verificationCode.ForeColor = Branding.Accent;
+
+            status.SetBounds(24, 442, 342, 28);
             status.TextAlign = ContentAlignment.MiddleCenter;
             status.ForeColor = Branding.MutedText;
 
-            restart.SetBounds(40, 447, 145, 34);
+            restart.SetBounds(40, 487, 145, 34);
             restart.Text = Localizer.Choose("New QR", "Новый QR");
             restart.Click += async (_, __) => await StartPairingAsync();
             ModernUi.RoundButton(restart, true);
 
-            cancel.SetBounds(205, 447, 145, 34);
+            cancel.SetBounds(205, 487, 145, 34);
             cancel.Text = Localizer.Choose("Cancel", "Отмена");
             cancel.Click += (_, __) => Close();
             ModernUi.RoundButton(cancel, false);
 
-            Controls.AddRange(new Control[] { description, qrCode, status, restart, cancel });
+            Controls.AddRange(new Control[] { description, qrCode, verificationCode, status, restart, cancel });
             Shown += async (_, __) => await StartPairingAsync();
             FormClosed += (_, __) =>
             {
@@ -105,6 +111,7 @@ namespace Steam_Desktop_Authenticator
             {
                 service = new LocalCloudPairingService();
                 qrCode.Image = CreateQrBitmap(service.PairingUri, 280, 280);
+                verificationCode.Text = service.VerificationCode;
                 countdown.Start();
                 UpdateCountdown();
                 PairingResult = await service.WaitForResultAsync(attemptCancellation.Token);
@@ -142,6 +149,7 @@ namespace Steam_Desktop_Authenticator
             service = null;
             Image expiredImage = qrCode.Image;
             qrCode.Image = null;
+            verificationCode.Text = string.Empty;
             expiredImage?.Dispose();
             status.Text = Localizer.Choose("QR expired. Create a new QR.", "Срок QR истёк. Создайте новый QR.");
         }
