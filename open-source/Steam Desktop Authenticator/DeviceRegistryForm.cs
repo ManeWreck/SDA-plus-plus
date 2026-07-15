@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -29,6 +30,7 @@ namespace Steam_Desktop_Authenticator
         private readonly Button activity = new Button();
         private readonly Button lockDevice = new Button();
         private readonly Button terminateSessions = new Button();
+        private readonly Button notifications = new Button();
         private DesktopRegistrySettings settings;
 
         public DeviceRegistryForm()
@@ -62,6 +64,7 @@ namespace Steam_Desktop_Authenticator
             activity = MakeButton(Localizer.Choose("Security activity", "События безопасности"), 20, 456, 180, false);
             lockDevice = MakeButton(Localizer.Choose("Lock device", "Заблокировать"), 210, 456, 120, false);
             terminateSessions = MakeButton(Localizer.Choose("End sessions", "Завершить сессии"), 340, 456, 160, false);
+            notifications = MakeButton(Localizer.Choose("Alerts", "Уведомления"), 510, 456, 90, false);
             setup.Click += async (_, __) => await SetupAsync();
             join.Click += async (_, __) => await JoinAsync();
             add.Click += (_, __) =>
@@ -75,7 +78,8 @@ namespace Steam_Desktop_Authenticator
             activity.Click += (_, __) => new DeviceAuditForm(settings).ShowDialog(this);
             lockDevice.Click += async (_, __) => await IssueDeviceCommandAsync("Lock");
             terminateSessions.Click += async (_, __) => await IssueDeviceCommandAsync("TerminateSteamSessions");
-            Controls.AddRange(new Control[] { status, devices, setup, join, add, refresh, revoke, wipe, lockdown, activity, lockDevice, terminateSessions });
+            notifications.Click += (_, __) => new SecurityWebhookForm(settings).ShowDialog(this);
+            Controls.AddRange(new Control[] { status, devices, setup, join, add, refresh, revoke, wipe, lockdown, activity, lockDevice, terminateSessions, notifications });
             Paint += ModernUi.PaintGlassBackground;
             Shown += async (_, __) => await LoadAsync();
         }
@@ -94,7 +98,7 @@ namespace Steam_Desktop_Authenticator
             setup.Visible = !configured;
             join.Visible = !configured;
             add.Visible = refresh.Visible = revoke.Visible = wipe.Visible = lockdown.Visible = activity.Visible =
-                lockDevice.Visible = terminateSessions.Visible = configured && settings.Role == "Admin";
+                lockDevice.Visible = terminateSessions.Visible = notifications.Visible = configured && settings.Role == "Admin";
             devices.Visible = configured && settings.Role == "Admin";
             status.Text = BuildRegistryStatus(configured);
             if (configured && settings.Role == "Admin") await RefreshAsync();
@@ -222,7 +226,7 @@ namespace Steam_Desktop_Authenticator
         }
 
         private void SetBusy(bool busy) => setup.Enabled = join.Enabled = add.Enabled = refresh.Enabled = revoke.Enabled = wipe.Enabled =
-            lockdown.Enabled = activity.Enabled = lockDevice.Enabled = terminateSessions.Enabled = !busy;
+            lockdown.Enabled = activity.Enabled = lockDevice.Enabled = terminateSessions.Enabled = notifications.Enabled = !busy;
 
         private string BuildRegistryStatus(bool configured)
         {
@@ -249,6 +253,211 @@ namespace Steam_Desktop_Authenticator
         private static string FormatTimestamp(long? timestamp) => timestamp == null
             ? "-"
             : DateTimeOffset.FromUnixTimeMilliseconds(timestamp.Value).LocalDateTime.ToString("g");
+    }
+
+    internal sealed class SecurityWebhookForm : Form
+    {
+        private readonly DesktopRegistrySettings settings;
+        private readonly DesktopDeviceRegistryClient client = new DesktopDeviceRegistryClient();
+        private readonly Label status = new Label();
+        private readonly TextBox endpoint = new TextBox();
+        private readonly Button configure = new Button();
+        private readonly Button test = new Button();
+        private readonly Button remove = new Button();
+
+        public SecurityWebhookForm(DesktopRegistrySettings settings)
+        {
+            this.settings = settings;
+            Text = Localizer.Choose("Security notifications", "Уведомления безопасности");
+            ClientSize = new Size(540, 300);
+            StartPosition = FormStartPosition.CenterParent;
+            BackColor = Branding.WindowBackground;
+            ForeColor = Branding.HeadingText;
+            Icon = Branding.LoadAppIcon();
+            ModernUi.AttachWindowChrome(this, false, false);
+
+            Label hint = new Label
+            {
+                Text = Localizer.Choose(
+                    "Send signed security events to your HTTPS webhook. Steam secrets, passwords, and Guard codes are never included.",
+                    "Отправлять подписанные события безопасности на HTTPS webhook. Steam-секреты, пароли и коды не передаются."),
+                ForeColor = Branding.MutedText,
+                Bounds = new Rectangle(20, 50, 500, 42)
+            };
+            status.SetBounds(20, 98, 500, 44);
+            status.ForeColor = Branding.MutedText;
+            endpoint.SetBounds(20, 150, 500, 30);
+            endpoint.PlaceholderText = "https://example.com/sdapp-events";
+            endpoint.BackColor = Branding.CardBackground;
+            endpoint.ForeColor = Branding.HeadingText;
+            endpoint.BorderStyle = BorderStyle.FixedSingle;
+            configure.SetBounds(20, 198, 155, 34);
+            configure.Text = Localizer.Choose("Configure", "Настроить");
+            test.SetBounds(185, 198, 155, 34);
+            test.Text = Localizer.Choose("Test", "Проверить");
+            remove.SetBounds(350, 198, 170, 34);
+            remove.Text = Localizer.Choose("Remove webhook", "Удалить webhook");
+            ModernUi.RoundButton(configure, true);
+            ModernUi.RoundButton(test, false);
+            ModernUi.RoundButton(remove, false);
+            configure.Click += async (_, __) => await ConfigureAsync();
+            test.Click += async (_, __) => await TestAsync();
+            remove.Click += async (_, __) => await RemoveAsync();
+            Controls.AddRange(new Control[] { hint, status, endpoint, configure, test, remove });
+            Paint += ModernUi.PaintGlassBackground;
+            Shown += async (_, __) => await RefreshAsync();
+        }
+
+        private async Task RefreshAsync()
+        {
+            try
+            {
+                SetBusy(true);
+                DesktopSecurityWebhookStatus snapshot = await client.GetSecurityWebhookAsync(settings, CancellationToken.None);
+                status.Text = BuildStatus(snapshot);
+                test.Enabled = remove.Enabled = snapshot.Configured;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                configure.Enabled = true;
+                if (string.IsNullOrWhiteSpace(status.Text)) test.Enabled = remove.Enabled = false;
+            }
+        }
+
+        private async Task ConfigureAsync()
+        {
+            if (string.IsNullOrWhiteSpace(endpoint.Text)) return;
+            if (!DesktopAdminStepUp.Require(this, settings)) return;
+            byte[] secretBytes = RandomNumberGenerator.GetBytes(32);
+            string signingSecret = Convert.ToBase64String(secretBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            CryptographicOperations.ZeroMemory(secretBytes);
+            try
+            {
+                SetBusy(true);
+                await client.ConfigureSecurityWebhookAsync(settings, endpoint.Text, signingSecret, CancellationToken.None);
+                using WebhookSecretForm secret = new WebhookSecretForm(signingSecret);
+                secret.ShowDialog(this);
+                await RefreshAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally { SetBusy(false); }
+        }
+
+        private async Task TestAsync()
+        {
+            try
+            {
+                SetBusy(true);
+                await client.TestSecurityWebhookAsync(settings, CancellationToken.None);
+                await RefreshAsync();
+                MessageBox.Show(
+                    Localizer.Choose("Test notification sent.", "Тестовое уведомление отправлено."),
+                    Text,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex) { MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            finally { SetBusy(false); }
+        }
+
+        private async Task RemoveAsync()
+        {
+            if (!DesktopAdminStepUp.Require(this, settings)) return;
+            if (MessageBox.Show(
+                Localizer.Choose("Remove the security webhook?", "Удалить webhook безопасности?"),
+                Text,
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Warning) != DialogResult.OK) return;
+            try
+            {
+                SetBusy(true);
+                await client.RemoveSecurityWebhookAsync(settings, CancellationToken.None);
+                status.Text = Localizer.Choose("Webhook is not configured.", "Webhook не настроен.");
+                test.Enabled = remove.Enabled = false;
+            }
+            catch (Exception ex) { MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            finally { SetBusy(false); }
+        }
+
+        private void SetBusy(bool busy) => configure.Enabled = test.Enabled = remove.Enabled = !busy;
+
+        private static string BuildStatus(DesktopSecurityWebhookStatus value)
+        {
+            if (value?.Configured != true)
+                return Localizer.Choose("Webhook is not configured.", "Webhook не настроен.");
+            string result = Localizer.Choose("Configured for: ", "Настроен для: ") + (value.EndpointHost ?? "-");
+            if (value.LastDeliveryAt != null)
+            {
+                result += Environment.NewLine + Localizer.Choose("Last delivery: ", "Последняя доставка: ") +
+                    DateTimeOffset.FromUnixTimeMilliseconds(value.LastDeliveryAt.Value).LocalDateTime.ToString("g") + " · " +
+                    (value.LastDeliveryOk == true
+                        ? Localizer.Choose("successful", "успешно")
+                        : Localizer.Choose("failed", "ошибка"));
+            }
+            return result;
+        }
+    }
+
+    internal sealed class WebhookSecretForm : Form
+    {
+        private bool acknowledged;
+
+        public WebhookSecretForm(string secret)
+        {
+            Text = Localizer.Choose("Save signing secret", "Сохраните секрет подписи");
+            ClientSize = new Size(540, 300);
+            StartPosition = FormStartPosition.CenterParent;
+            BackColor = Branding.WindowBackground;
+            ForeColor = Branding.HeadingText;
+            Icon = Branding.LoadAppIcon();
+            ModernUi.AttachWindowChrome(this, false, false);
+            Label warning = new Label
+            {
+                Text = Localizer.Choose(
+                    "This secret is shown once. Your receiver needs it to verify the HMAC-SHA256 signature. SDA++ cannot display it again.",
+                    "Секрет показывается один раз. Он нужен обработчику для проверки HMAC-SHA256 подписи. SDA++ не сможет показать его повторно."),
+                ForeColor = Branding.MutedText,
+                Bounds = new Rectangle(20, 52, 500, 58)
+            };
+            TextBox value = new TextBox
+            {
+                Text = secret,
+                ReadOnly = true,
+                Multiline = true,
+                Bounds = new Rectangle(20, 120, 500, 54),
+                BackColor = Branding.CardBackground,
+                ForeColor = Branding.HeadingText,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            Button copy = new Button
+            {
+                Text = Localizer.Choose("Copy secret", "Копировать секрет"),
+                Bounds = new Rectangle(20, 195, 190, 34)
+            };
+            Button saved = new Button
+            {
+                Text = Localizer.Choose("I saved the secret", "Я сохранил секрет"),
+                Bounds = new Rectangle(220, 195, 300, 34)
+            };
+            ModernUi.RoundButton(copy, false);
+            ModernUi.RoundButton(saved, true);
+            copy.Click += (_, __) => Clipboard.SetText(secret);
+            saved.Click += (_, __) =>
+            {
+                acknowledged = true;
+                Close();
+            };
+            FormClosing += (_, e) => e.Cancel = !acknowledged;
+            Controls.AddRange(new Control[] { warning, value, copy, saved });
+            Paint += ModernUi.PaintGlassBackground;
+        }
     }
 
     internal sealed class DeviceAuditForm : Form

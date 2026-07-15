@@ -66,6 +66,15 @@ namespace Steam_Desktop_Authenticator
         [JsonProperty("country")] public string Country { get; set; }
     }
 
+    internal sealed class DesktopSecurityWebhookStatus
+    {
+        [JsonProperty("configured")] public bool Configured { get; set; }
+        [JsonProperty("endpointHost")] public string EndpointHost { get; set; }
+        [JsonProperty("updatedAt")] public long? UpdatedAt { get; set; }
+        [JsonProperty("lastDeliveryAt")] public long? LastDeliveryAt { get; set; }
+        [JsonProperty("lastDeliveryOk")] public bool? LastDeliveryOk { get; set; }
+    }
+
     internal static class DesktopRegistrySettingsStore
     {
         private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("SDA++ desktop device registry v1");
@@ -185,6 +194,42 @@ namespace Steam_Desktop_Authenticator
         {
             JObject response = await SendAsync(settings.RelayUrl, $"/v1/trust/{settings.VaultId}/audit", HttpMethod.Get, null, false, null, token);
             return response["events"]?.ToObject<List<DesktopRegistryAuditEvent>>() ?? new List<DesktopRegistryAuditEvent>();
+        }
+
+        public async Task<DesktopSecurityWebhookStatus> GetSecurityWebhookAsync(DesktopRegistrySettings settings, CancellationToken token)
+        {
+            JObject response = await SendAsync(settings.RelayUrl, $"/v1/trust/{settings.VaultId}/notifications", HttpMethod.Get, null, false, null, token);
+            return response.ToObject<DesktopSecurityWebhookStatus>() ?? new DesktopSecurityWebhookStatus();
+        }
+
+        public async Task ConfigureSecurityWebhookAsync(
+            DesktopRegistrySettings settings,
+            string endpointUrl,
+            string signingSecret,
+            CancellationToken token)
+        {
+            await SendAsync(
+                settings.RelayUrl,
+                $"/v1/trust/{settings.VaultId}/notifications",
+                HttpMethod.Put,
+                new JObject
+                {
+                    ["endpointUrl"] = (endpointUrl ?? string.Empty).Trim(),
+                    ["signingSecret"] = signingSecret
+                },
+                false,
+                null,
+                token);
+        }
+
+        public async Task TestSecurityWebhookAsync(DesktopRegistrySettings settings, CancellationToken token)
+        {
+            await SendAsync(settings.RelayUrl, $"/v1/trust/{settings.VaultId}/notifications/test", HttpMethod.Post, null, false, null, token);
+        }
+
+        public async Task RemoveSecurityWebhookAsync(DesktopRegistrySettings settings, CancellationToken token)
+        {
+            await SendAsync(settings.RelayUrl, $"/v1/trust/{settings.VaultId}/notifications", HttpMethod.Delete, null, false, null, token);
         }
 
         public async Task HeartbeatAsync(DesktopRegistrySettings settings, CancellationToken token)
