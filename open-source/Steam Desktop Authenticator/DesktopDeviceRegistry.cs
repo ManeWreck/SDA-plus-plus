@@ -178,24 +178,56 @@ namespace Steam_Desktop_Authenticator
 
         public async Task<DesktopDeviceInvitation> CreateInvitationAsync(
             DesktopRegistrySettings settings,
-            IEnumerable<string> steamIds,
+            string role,
+            IEnumerable<SteamGuardAccount> selectedAccounts,
             IEnumerable<string> capabilities,
             CancellationToken cancellationToken)
         {
+            if (role != "TrustedOnline" && role != "TrustedOffline" && role != "Temporary")
+                throw new InvalidOperationException("Invalid device role.");
+            SteamGuardAccount[] accountList = selectedAccounts?.Where(account => account?.Session != null)
+                .GroupBy(account => account.Session.SteamID)
+                .Select(group => group.First())
+                .ToArray()
+                ?? Array.Empty<SteamGuardAccount>();
+            if (accountList.Length == 0) throw new InvalidOperationException("Select at least one account.");
+            string[] steamIds = accountList.Select(account => account.Session.SteamID.ToString()).Distinct().ToArray();
+            JArray accountPayloads = new JArray();
+            int payloadBytes = 0;
+            if (role == "TrustedOffline")
+            {
+                foreach (SteamGuardAccount account in accountList)
+                {
+                    byte[] plain = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(account));
+                    try
+                    {
+                        payloadBytes += plain.Length;
+                        if (payloadBytes > 256 * 1024) throw new InvalidOperationException("Selected account data is too large for one invitation. Create multiple invitations.");
+                        accountPayloads.Add(new JObject
+                        {
+                            ["steamId"] = account.Session.SteamID.ToString(),
+                            ["maFile"] = Convert.ToBase64String(plain)
+                        });
+                    }
+                    finally { CryptographicOperations.ZeroMemory(plain); }
+                }
+            }
             string inviteId = RandomBase64Url(16);
             string inviteToken = RandomBase64Url(32);
             string verificationCode = RandomVerificationCode();
             long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             long expiresAt = now + (long)TimeSpan.FromMinutes(5).TotalMilliseconds;
+            long? deviceExpiresAt = role == "Temporary" ? now + (long)TimeSpan.FromHours(24).TotalMilliseconds : null;
             JObject grant = new JObject
             {
                 ["version"] = 1,
-                ["role"] = "TrustedOnline",
+                ["role"] = role,
                 ["accountSteamIds"] = new JArray(steamIds.Distinct().OrderBy(value => value, StringComparer.Ordinal)),
                 ["capabilities"] = new JArray(capabilities.Distinct().OrderBy(value => value, StringComparer.Ordinal)),
                 ["issuedAt"] = now,
-                ["expiresAt"] = null,
-                ["offlineWipeAfterHours"] = 168
+                ["expiresAt"] = deviceExpiresAt,
+                ["offlineWipeAfterHours"] = role == "TrustedOffline" ? 168 : null,
+                ["accountPayloads"] = accountPayloads
             };
             string envelope = EncryptGrant(Encoding.UTF8.GetBytes(grant.ToString(Formatting.None)), inviteToken, settings.VaultId, inviteId);
             JObject body = new JObject
@@ -203,9 +235,9 @@ namespace Steam_Desktop_Authenticator
                 ["inviteId"] = inviteId,
                 ["tokenHash"] = Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(inviteToken))),
                 ["verificationCodeHash"] = Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(verificationCode))),
-                ["role"] = "TrustedOnline",
+                ["role"] = role,
                 ["expiresAt"] = expiresAt,
-                ["deviceExpiresAt"] = null,
+                ["deviceExpiresAt"] = deviceExpiresAt,
                 ["grantEnvelope"] = envelope
             };
             await SendAsync(settings.RelayUrl, $"/v1/trust/{settings.VaultId}/invites", HttpMethod.Post, body, false, null, cancellationToken);
@@ -213,7 +245,7 @@ namespace Steam_Desktop_Authenticator
             return new DesktopDeviceInvitation { QrPayload = qr, ExpiresAt = expiresAt, VerificationCode = verificationCode };
         }
 
-        public async Task<DesktopRegistrySettings> ClaimInvitationAsync(string qrPayload, string verificationCode, CancellationToken token)
+        public async Task<DesktopRegistrySettings> ClaimInvitationAsync(string qrPayload, string verificationCode, string localVaultPassKey, CancellationToken token)
         {
             Uri uri = new Uri(qrPayload ?? string.Empty);
             if (uri.Scheme != "sdapp" || uri.Host != "device-enroll") throw new InvalidOperationException("Invalid SDA++ device invitation.");
@@ -251,6 +283,7 @@ namespace Steam_Desktop_Authenticator
                     LastSuccessfulHeartbeatAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 };
                 DesktopRegistrySettingsStore.Save(settings);
+                ImportGrantedAccounts(grant, settings, localVaultPassKey);
                 return settings;
             }
             finally { CryptographicOperations.ZeroMemory(grantBytes); }
@@ -357,6 +390,38 @@ namespace Steam_Desktop_Authenticator
 
         private static string RandomVerificationCode() =>
             RandomNumberGenerator.GetInt32(1_000_000).ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
+
+        private static void ImportGrantedAccounts(JObject grant, DesktopRegistrySettings settings, string passKey)
+        {
+            JArray payloads = grant["accountPayloads"] as JArray;
+            if (payloads == null || payloads.Count == 0) return;
+            if (settings.Role != "TrustedOffline") throw new InvalidOperationException("This device role cannot receive account secrets.");
+            if (payloads.Count > 64) throw new InvalidOperationException("The account grant contains too many payloads.");
+            Manifest manifest = Manifest.GetManifest(true);
+            if (manifest.Encrypted && string.IsNullOrEmpty(passKey)) throw new InvalidOperationException("The local vault passkey is required to import granted accounts.");
+            int totalBytes = 0;
+            HashSet<string> importedIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (JObject payload in payloads.OfType<JObject>())
+            {
+                string steamId = payload.Value<string>("steamId") ?? string.Empty;
+                if (!settings.GrantedAccountSteamIds.Contains(steamId) || !importedIds.Add(steamId))
+                    throw new InvalidOperationException("The account grant contains an invalid payload.");
+                byte[] plain = Convert.FromBase64String(payload.Value<string>("maFile") ?? string.Empty);
+                try
+                {
+                    totalBytes += plain.Length;
+                    if (totalBytes > 256 * 1024) throw new InvalidOperationException("The account grant is too large.");
+                    SteamGuardAccount account = JsonConvert.DeserializeObject<SteamGuardAccount>(Encoding.UTF8.GetString(plain));
+                    if (account?.Session == null || account.Session.SteamID.ToString() != steamId)
+                        throw new InvalidOperationException("The account payload does not match its grant.");
+                    if (!manifest.SaveAccount(account, manifest.Encrypted, passKey))
+                        throw new InvalidOperationException("SDA++ could not save a granted account into the local vault.");
+                }
+                finally { CryptographicOperations.ZeroMemory(plain); }
+            }
+            if (!importedIds.SetEquals(settings.GrantedAccountSteamIds))
+                throw new InvalidOperationException("The account payload does not match the granted accounts.");
+        }
 
         private static Dictionary<string, string> ParseQuery(string query) =>
             (query ?? string.Empty).TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)

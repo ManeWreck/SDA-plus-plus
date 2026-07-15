@@ -81,11 +81,14 @@ namespace Steam_Desktop_Authenticator
             setup.Visible = !configured;
             join.Visible = !configured;
             add.Visible = refresh.Visible = revoke.Visible = wipe.Visible = lockdown.Visible = configured && settings.Role == "Admin";
-            devices.Visible = configured;
+            devices.Visible = configured && settings.Role == "Admin";
             status.Text = configured
-                ? Localizer.Choose("Signed Admin registry is active on this PC.", "Подписанный Admin-реестр активен на этом ПК.")
+                ? settings.Role == "Admin"
+                    ? Localizer.Choose("Signed Admin registry is active on this PC.", "Подписанный Admin-реестр активен на этом ПК.")
+                    : Localizer.Choose($"This PC is enrolled as {settings.Role}.", $"Этот ПК подключён как {settings.Role}.")
                 : Localizer.Choose("Create a registry before adding trusted devices.", "Создайте реестр перед добавлением доверенных устройств.");
-            if (configured) await RefreshAsync();
+            if (configured && settings.Role == "Admin") await RefreshAsync();
+            else if (configured) await client.HeartbeatAsync(settings, CancellationToken.None);
         }
 
         private async Task SetupAsync()
@@ -118,7 +121,14 @@ namespace Steam_Desktop_Authenticator
                     "Введите 6-значный код устройства, показанный на Admin-устройстве."));
                 code.ShowDialog(this);
                 if (code.Canceled) return;
-                settings = await client.ClaimInvitationAsync(payload, code.txtBox.Text, CancellationToken.None);
+                string vaultPassKey = null;
+                Manifest localManifest = Manifest.GetManifest(true);
+                if (localManifest.Encrypted)
+                {
+                    vaultPassKey = localManifest.PromptForPassKey();
+                    if (vaultPassKey == null) return;
+                }
+                settings = await client.ClaimInvitationAsync(payload, code.txtBox.Text, vaultPassKey, CancellationToken.None);
                 await LoadAsync();
             }
             catch (Exception ex)
@@ -180,6 +190,7 @@ namespace Steam_Desktop_Authenticator
     {
         private readonly DesktopRegistrySettings settings;
         private readonly CheckedListBox accounts = new CheckedListBox();
+        private readonly ComboBox role = new ComboBox();
         private readonly PictureBox qr = new PictureBox();
         private readonly Label hint = new Label();
 
@@ -196,10 +207,31 @@ namespace Steam_Desktop_Authenticator
             hint.SetBounds(24, 48, 342, 42);
             hint.Text = Localizer.Choose("Choose accounts shared with this device.", "Выберите аккаунты, доступные этому устройству.");
             hint.ForeColor = Branding.MutedText;
-            accounts.SetBounds(24, 96, 342, 330);
+            role.SetBounds(24, 96, 342, 28);
+            role.DropDownStyle = ComboBoxStyle.DropDownList;
+            role.Items.AddRange(new object[]
+            {
+                Localizer.Choose("Trusted online (permissions only)", "Trusted online (только разрешения)"),
+                Localizer.Choose("Trusted offline (copies selected maFiles)", "Trusted offline (копирует выбранные maFile)"),
+                Localizer.Choose("Temporary (24 hours, permissions only)", "Temporary (24 часа, только разрешения)")
+            });
+            role.SelectedIndex = 0;
+            role.SelectedIndexChanged += (_, __) =>
+            {
+                hint.Text = role.SelectedIndex == 1
+                    ? Localizer.Choose(
+                        "Warning: remote wipe cannot revoke a Steam Guard secret already copied outside SDA++.",
+                        "Внимание: удалённая очистка не отзовёт Steam Guard secret, уже скопированный вне SDA++.")
+                    : Localizer.Choose("Choose accounts shared with this device.", "Выберите аккаунты, доступные этому устройству.");
+            };
+            accounts.SetBounds(24, 132, 342, 294);
             accounts.BackColor = Branding.CardBackground;
             accounts.ForeColor = Branding.HeadingText;
-            SteamGuardAccount[] available = Manifest.GetManifest().GetAllAccounts() ?? Array.Empty<SteamGuardAccount>();
+            Manifest manifest = Manifest.GetManifest(true);
+            string passKey = manifest.Encrypted ? manifest.PromptForPassKey() : null;
+            SteamGuardAccount[] available = manifest.Encrypted && passKey == null
+                ? Array.Empty<SteamGuardAccount>()
+                : manifest.GetAllAccounts(passKey) ?? Array.Empty<SteamGuardAccount>();
             foreach (SteamGuardAccount account in available) accounts.Items.Add(account, true);
             Button create = new Button { Text = Localizer.Choose("Create one-time QR", "Создать одноразовый QR"), Bounds = new Rectangle(24, 444, 342, 36) };
             ModernUi.RoundButton(create, true);
@@ -219,7 +251,7 @@ namespace Steam_Desktop_Authenticator
             qr.SizeMode = PictureBoxSizeMode.Zoom;
             qr.BackColor = Color.White;
             qr.Visible = false;
-            Controls.AddRange(new Control[] { hint, accounts, qr, create });
+            Controls.AddRange(new Control[] { hint, role, accounts, qr, create });
             Paint += ModernUi.PaintGlassBackground;
         }
 
@@ -230,12 +262,20 @@ namespace Steam_Desktop_Authenticator
             button.Enabled = false;
             try
             {
+                string roleValue = role.SelectedIndex switch
+                {
+                    1 => "TrustedOffline",
+                    2 => "Temporary",
+                    _ => "TrustedOnline"
+                };
                 DesktopDeviceInvitation invitation = await new DesktopDeviceRegistryClient().CreateInvitationAsync(
                     settings,
-                    selected.Select(account => account.Session?.SteamID.ToString()).Where(value => !string.IsNullOrWhiteSpace(value)),
+                    roleValue,
+                    selected,
                     new[] { "ViewGuardCode", "ApproveSteamQr", "ViewConfirmations", "ApproveConfirmations" },
                     CancellationToken.None);
                 accounts.Visible = false;
+                role.Visible = false;
                 qr.Image = CreateQrBitmap(invitation.QrPayload, 280, 280);
                 qr.Visible = true;
                 hint.Text = Localizer.Choose("Scan in SDA++ Mobile. This QR expires in five minutes and works once.", "Отсканируйте в SDA++ Mobile. QR действует пять минут и только один раз.");
