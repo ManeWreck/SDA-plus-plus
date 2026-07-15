@@ -38,6 +38,7 @@ namespace Steam_Desktop_Authenticator
         [JsonProperty("displayName")] public string DisplayName { get; set; }
         [JsonProperty("role")] public string Role { get; set; }
         [JsonProperty("lastSeenAt")] public long LastSeenAt { get; set; }
+        [JsonProperty("expiresAt")] public long? ExpiresAt { get; set; }
         [JsonProperty("revokedAt")] public long? RevokedAt { get; set; }
     }
 

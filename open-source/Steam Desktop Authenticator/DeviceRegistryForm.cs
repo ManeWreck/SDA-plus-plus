@@ -41,16 +41,17 @@ namespace Steam_Desktop_Authenticator
             Icon = Branding.LoadAppIcon();
             ModernUi.AttachWindowChrome(this, false, false);
 
-            status.SetBounds(20, 48, 580, 40);
+            status.SetBounds(20, 48, 580, 60);
             status.ForeColor = Branding.MutedText;
-            devices.SetBounds(20, 94, 580, 300);
+            devices.SetBounds(20, 114, 580, 280);
             devices.View = View.Details;
             devices.FullRowSelect = true;
             devices.BackColor = Branding.CardBackground;
             devices.ForeColor = Branding.HeadingText;
-            devices.Columns.Add(Localizer.Choose("Device", "Устройство"), 210);
-            devices.Columns.Add(Localizer.Choose("Role", "Роль"), 120);
-            devices.Columns.Add(Localizer.Choose("Last seen", "Последняя связь"), 160);
+            devices.Columns.Add(Localizer.Choose("Device", "Устройство"), 170);
+            devices.Columns.Add(Localizer.Choose("Role", "Роль"), 105);
+            devices.Columns.Add(Localizer.Choose("Last seen", "Последняя связь"), 140);
+            devices.Columns.Add(Localizer.Choose("Expires", "Истекает"), 140);
             setup = MakeButton(Localizer.Choose("Create Admin registry", "Создать Admin-реестр"), 20, 410, 180, true);
             join = MakeButton(Localizer.Choose("Join by QR", "Подключить по QR"), 210, 410, 150, false);
             add = MakeButton(Localizer.Choose("Add device", "Добавить устройство"), 20, 410, 120, true);
@@ -95,11 +96,7 @@ namespace Steam_Desktop_Authenticator
             add.Visible = refresh.Visible = revoke.Visible = wipe.Visible = lockdown.Visible = activity.Visible =
                 lockDevice.Visible = terminateSessions.Visible = configured && settings.Role == "Admin";
             devices.Visible = configured && settings.Role == "Admin";
-            status.Text = configured
-                ? settings.Role == "Admin"
-                    ? Localizer.Choose("Signed Admin registry is active on this PC.", "Подписанный Admin-реестр активен на этом ПК.")
-                    : Localizer.Choose($"This PC is enrolled as {settings.Role}.", $"Этот ПК подключён как {settings.Role}.")
-                : Localizer.Choose("Create a registry before adding trusted devices.", "Создайте реестр перед добавлением доверенных устройств.");
+            status.Text = BuildRegistryStatus(configured);
             if (configured && settings.Role == "Admin") await RefreshAsync();
             else if (configured) await client.HeartbeatAsync(settings, CancellationToken.None);
         }
@@ -166,6 +163,7 @@ namespace Steam_Desktop_Authenticator
                     ListViewItem item = new ListViewItem(device.DisplayName ?? device.DeviceId) { Tag = device };
                     item.SubItems.Add(device.Role);
                     item.SubItems.Add(DateTimeOffset.FromUnixTimeMilliseconds(device.LastSeenAt).LocalDateTime.ToString("g"));
+                    item.SubItems.Add(FormatTimestamp(device.ExpiresAt));
                     if (device.RevokedAt != null) item.ForeColor = Branding.Danger;
                     devices.Items.Add(item);
                 }
@@ -225,6 +223,32 @@ namespace Steam_Desktop_Authenticator
 
         private void SetBusy(bool busy) => setup.Enabled = join.Enabled = add.Enabled = refresh.Enabled = revoke.Enabled = wipe.Enabled =
             lockdown.Enabled = activity.Enabled = lockDevice.Enabled = terminateSessions.Enabled = !busy;
+
+        private string BuildRegistryStatus(bool configured)
+        {
+            if (!configured)
+                return Localizer.Choose("Create a registry before adding trusted devices.", "Создайте реестр перед добавлением доверенных устройств.");
+            if (settings.Role == "Admin")
+                return Localizer.Choose("Signed Admin registry is active on this PC.", "Подписанный Admin-реестр активен на этом ПК.");
+
+            string summary = Localizer.Choose($"This PC is enrolled as {settings.Role}.", $"Этот ПК подключён как {settings.Role}.");
+            if (settings.LastSuccessfulHeartbeatAt != null)
+            {
+                summary += Environment.NewLine + Localizer.Choose("Last contact: ", "Последняя связь: ") + FormatTimestamp(settings.LastSuccessfulHeartbeatAt);
+                if (settings.OfflineWipeAfterHours != null)
+                {
+                    long wipeAt = settings.LastSuccessfulHeartbeatAt.Value + (long)TimeSpan.FromHours(settings.OfflineWipeAfterHours.Value).TotalMilliseconds;
+                    summary += Environment.NewLine + Localizer.Choose("Local wipe after: ", "Локальная очистка после: ") + FormatTimestamp(wipeAt);
+                }
+            }
+            if (settings.ExpiresAt != null)
+                summary += Environment.NewLine + Localizer.Choose("Access expires: ", "Доступ истекает: ") + FormatTimestamp(settings.ExpiresAt);
+            return summary;
+        }
+
+        private static string FormatTimestamp(long? timestamp) => timestamp == null
+            ? "-"
+            : DateTimeOffset.FromUnixTimeMilliseconds(timestamp.Value).LocalDateTime.ToString("g");
     }
 
     internal sealed class DeviceAuditForm : Form
