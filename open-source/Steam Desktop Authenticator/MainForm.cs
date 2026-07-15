@@ -5,6 +5,7 @@ using SteamAuth;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Net;
+using System.Net.Http;
 using Newtonsoft.Json;
 using System.Threading;
 using System.Drawing;
@@ -1270,28 +1271,35 @@ namespace Steam_Desktop_Authenticator
 
         private async Task<string> RequestRemoteSteamQrApprovalAsync(SteamGuardAccount account, string qrText)
         {
-            DesktopRegistrySettings settings = DesktopDeviceAccess.Current;
-            string steamId = account.Session.SteamID.ToString();
-            using CancellationTokenSource timeout = new CancellationTokenSource(TimeSpan.FromSeconds(100));
-            DesktopDeviceRegistryClient client = new DesktopDeviceRegistryClient();
-            string actionId = await client.RequestSteamQrApprovalAsync(settings, steamId, qrText, timeout.Token);
-
-            while (true)
+            try
             {
-                SteamQrRemoteResponse response = await client.ConsumeSteamQrApprovalResultAsync(settings, actionId, timeout.Token);
-                if (response != null)
+                DesktopRegistrySettings settings = DesktopDeviceAccess.Current;
+                string steamId = account.Session.SteamID.ToString();
+                using CancellationTokenSource timeout = new CancellationTokenSource(TimeSpan.FromSeconds(100));
+                DesktopDeviceRegistryClient client = new DesktopDeviceRegistryClient();
+                string actionId = await client.RequestSteamQrApprovalAsync(settings, steamId, qrText, timeout.Token);
+
+                while (true)
                 {
-                    if (!response.Success)
+                    SteamQrRemoteResponse response = await client.ConsumeSteamQrApprovalResultAsync(settings, actionId, timeout.Token);
+                    if (response != null)
                     {
-                        throw new InvalidOperationException(RemoteActionErrorText(response.Error));
+                        if (!response.Success)
+                        {
+                            throw new InvalidOperationException(RemoteActionErrorText(response.Error));
+                        }
+
+                        return Localizer.Choose(
+                            "QR login approved by the Admin device.",
+                            "QR-вход подтвержден Admin-устройством.");
                     }
 
-                    return Localizer.Choose(
-                        "QR login approved by the Admin device.",
-                        "QR-вход подтвержден Admin-устройством.");
+                    await Task.Delay(1250, timeout.Token);
                 }
-
-                await Task.Delay(1250, timeout.Token);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException || ex is HttpRequestException || ex is DesktopRegistryException)
+            {
+                throw new InvalidOperationException(RemoteActionFailureText(RemoteActionFailure.Classify(ex)));
             }
         }
 
@@ -1659,6 +1667,11 @@ namespace Steam_Desktop_Authenticator
 
             remoteGuardCode = string.Empty;
             remoteGuardCodeValidUntil = 0;
+            if (!remoteGuardCodeInProgress && DateTime.UtcNow < remoteGuardCodeRetryAt)
+            {
+                UpdateTimeoutBar(0, 30);
+                return;
+            }
             txtLoginToken.Text = remoteGuardCodeInProgress
                 ? Localizer.Choose("WAIT", "ЖДИТЕ")
                 : "-----";
@@ -1713,8 +1726,23 @@ namespace Steam_Desktop_Authenticator
             {
                 if (currentAccount?.Session?.SteamID == requestedSteamId)
                 {
-                    txtLoginToken.Text = "ERROR";
-                    lblStatus.Text = Localizer.Choose("Remote Guard code: ", "Удалённый Guard-код: ") + GetInnermostExceptionMessage(ex);
+                    RemoteActionFailureKind failure = RemoteActionFailure.Classify(ex);
+                    bool knownFailure = failure != RemoteActionFailureKind.Unknown;
+                    remoteGuardCodeRetryAt = !knownFailure || RemoteActionFailure.CanRetryAutomatically(failure)
+                        ? DateTime.UtcNow.AddSeconds(30)
+                        : DateTime.MaxValue;
+                    txtLoginToken.Text = failure switch
+                    {
+                        RemoteActionFailureKind.RelayUnavailable => "OFFLINE",
+                        RemoteActionFailureKind.AdminTimeout => "TIMEOUT",
+                        RemoteActionFailureKind.AuthorizationExpired => "LOCKED",
+                        RemoteActionFailureKind.DeviceLocked => "LOCKED",
+                        RemoteActionFailureKind.RequestExpired => "EXPIRED",
+                        _ => "ERROR"
+                    };
+                    lblStatus.Text = knownFailure
+                        ? RemoteActionFailureText(failure)
+                        : GetInnermostExceptionMessage(ex);
                 }
             }
             finally
@@ -1750,6 +1778,32 @@ namespace Steam_Desktop_Authenticator
                 "GenerationFailed" => Localizer.Choose("The Admin device could not generate a Guard code.", "Admin-устройство не смогло создать Guard-код."),
                 "ApprovalFailed" => Localizer.Choose("The Admin device could not approve this QR login.", "Admin-устройство не смогло подтвердить этот QR-вход."),
                 _ => Localizer.Choose("The Admin device rejected the remote request.", "Admin-устройство отклонило удалённый запрос.")
+            };
+        }
+
+        private static string RemoteActionFailureText(RemoteActionFailureKind failure)
+        {
+            return failure switch
+            {
+                RemoteActionFailureKind.RelayUnavailable => Localizer.Choose(
+                    "The secure relay is unreachable. Check the Internet connection; SDA++ will retry automatically.",
+                    "Защищённый relay недоступен. Проверьте интернет; SDA++ повторит запрос автоматически."),
+                RemoteActionFailureKind.AdminTimeout => Localizer.Choose(
+                    "No Admin device responded in time. Bring an Admin device online and try again.",
+                    "Admin-устройство не ответило вовремя. Подключите его к интернету и повторите попытку."),
+                RemoteActionFailureKind.AuthorizationExpired => Localizer.Choose(
+                    "This device authorization was rejected or revoked. Pair the device again.",
+                    "Авторизация этого устройства отклонена или отозвана. Выполните сопряжение заново."),
+                RemoteActionFailureKind.DeviceLocked => Localizer.Choose(
+                    "This device is locked by an Admin and cannot request account actions.",
+                    "Это устройство заблокировано Admin-устройством и не может запрашивать действия аккаунта."),
+                RemoteActionFailureKind.RequestExpired => Localizer.Choose(
+                    "The remote request expired before an Admin responded. Try again.",
+                    "Удалённый запрос истёк до ответа Admin-устройства. Повторите попытку."),
+                RemoteActionFailureKind.Rejected => Localizer.Choose(
+                    "The secure relay rejected the request.",
+                    "Защищённый relay отклонил запрос."),
+                _ => Localizer.Choose("The remote request failed.", "Удалённый запрос не выполнен.")
             };
         }
 

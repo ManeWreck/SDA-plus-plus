@@ -814,7 +814,16 @@ namespace Steam_Desktop_Authenticator
             if (method != HttpMethod.Get) request.Content = new ByteArrayContent(body) { Headers = { ContentType = new MediaTypeHeaderValue("application/json") } };
             using HttpResponseMessage response = await Http.SendAsync(request, token);
             string text = await response.Content.ReadAsStringAsync(token);
-            if (!response.IsSuccessStatusCode) throw new InvalidOperationException(JObject.Parse(string.IsNullOrWhiteSpace(text) ? "{}" : text).Value<string>("error") ?? $"Registry HTTP {(int)response.StatusCode}");
+            if (!response.IsSuccessStatusCode)
+            {
+                string registryError = $"Registry HTTP {(int)response.StatusCode}";
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    try { registryError = JObject.Parse(text).Value<string>("error") ?? registryError; }
+                    catch (JsonException) { }
+                }
+                throw new DesktopRegistryException(response.StatusCode, registryError);
+            }
             return string.IsNullOrWhiteSpace(text) ? new JObject() : JObject.Parse(text);
         }
 

@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Text;
+using System.Net;
+using System.Net.Http;
 using SteamAuth;
 
 Assembly application = Assembly.Load("SDA++");
@@ -157,6 +159,47 @@ bool remotePlaceholderSafe =
     remotePlaceholder.Session.RefreshToken == null &&
     visibleAccounts.All(account => account.Session.SteamID != 76561198000000003);
 
+Type registryExceptionType = application.GetType(
+    "Steam_Desktop_Authenticator.DesktopRegistryException",
+    throwOnError: true)!;
+Type remoteFailureType = application.GetType(
+    "Steam_Desktop_Authenticator.RemoteActionFailure",
+    throwOnError: true)!;
+MethodInfo classifyRemoteFailure = remoteFailureType.GetMethod(
+    "Classify",
+    BindingFlags.Public | BindingFlags.Static)!;
+MethodInfo canRetryRemoteFailure = remoteFailureType.GetMethod(
+    "CanRetryAutomatically",
+    BindingFlags.Public | BindingFlags.Static)!;
+object unauthorizedFailure = Activator.CreateInstance(
+    registryExceptionType,
+    HttpStatusCode.Forbidden,
+    "fixture-revoked")!;
+object lockedFailure = Activator.CreateInstance(
+    registryExceptionType,
+    (HttpStatusCode)423,
+    "fixture-locked")!;
+object expiredFailure = Activator.CreateInstance(
+    registryExceptionType,
+    HttpStatusCode.Gone,
+    "fixture-expired")!;
+object unauthorizedKind = classifyRemoteFailure.Invoke(null, new[] { unauthorizedFailure })!;
+object lockedKind = classifyRemoteFailure.Invoke(null, new[] { lockedFailure })!;
+object expiredKind = classifyRemoteFailure.Invoke(null, new[] { expiredFailure })!;
+object offlineKind = classifyRemoteFailure.Invoke(null, new object[] { new HttpRequestException("fixture-offline") })!;
+object timeoutKind = classifyRemoteFailure.Invoke(null, new object[] { new OperationCanceledException("fixture-timeout") })!;
+bool remoteFailureClassificationSafe =
+    unauthorizedKind.ToString() == "AuthorizationExpired" &&
+    lockedKind.ToString() == "DeviceLocked" &&
+    expiredKind.ToString() == "RequestExpired" &&
+    offlineKind.ToString() == "RelayUnavailable" &&
+    timeoutKind.ToString() == "AdminTimeout" &&
+    !(bool)canRetryRemoteFailure.Invoke(null, new[] { unauthorizedKind })! &&
+    !(bool)canRetryRemoteFailure.Invoke(null, new[] { lockedKind })! &&
+    (bool)canRetryRemoteFailure.Invoke(null, new[] { expiredKind })! &&
+    (bool)canRetryRemoteFailure.Invoke(null, new[] { offlineKind })! &&
+    (bool)canRetryRemoteFailure.Invoke(null, new[] { timeoutKind })!;
+
 object first = getInfo.Invoke(null, null)!;
 object second = getInfo.Invoke(null, null)!;
 Type infoType = first.GetType();
@@ -221,7 +264,9 @@ Console.WriteLine($"RemoteActionAuthorizationFixtureMatches={authorizationFixtur
 Console.WriteLine($"GuardCodeRemotePayloadFixtureMatches={guardCodeFixtureMatches}");
 Console.WriteLine($"SteamQrRemotePayloadFixtureMatches={steamQrFixtureMatches}");
 Console.WriteLine($"RemoteAccountPlaceholderSafe={remotePlaceholderSafe}");
+Console.WriteLine($"RemoteFailureClassificationSafe={remoteFailureClassificationSafe}");
 
 return firstId == secondId && valid && !tampered && encryptionBindingValid && !encryptionBindingTampered &&
     actionPayload.SequenceEqual(decryptedAction) && actionContextFixtureMatches && actionContextTamperRejected &&
-    authorizationFixtureMatches && guardCodeFixtureMatches && steamQrFixtureMatches && remotePlaceholderSafe ? 0 : 1;
+    authorizationFixtureMatches && guardCodeFixtureMatches && steamQrFixtureMatches && remotePlaceholderSafe &&
+    remoteFailureClassificationSafe ? 0 : 1;
