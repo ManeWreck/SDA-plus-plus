@@ -69,7 +69,9 @@ namespace Steam_Desktop_Authenticator
                 health.MinimumClientProtocol > ClientProtocolVersion ||
                 health.Storage != "opaque-ciphertext-only" ||
                 health.Capabilities?.Contains("one-time-pairing", StringComparer.Ordinal) != true ||
-                (requireRegistry && health.Capabilities?.Contains("device-registry-v1", StringComparer.Ordinal) != true))
+                (requireRegistry &&
+                    (health.Capabilities?.Contains("device-registry-v1", StringComparer.Ordinal) != true ||
+                     health.Capabilities?.Contains("device-encryption-v1", StringComparer.Ordinal) != true)))
             {
                 throw new InvalidOperationException(Localizer.Choose(
                     "The Worker uses an incompatible SDA++ relay protocol.",

@@ -9,6 +9,8 @@ namespace Steam_Desktop_Authenticator
     {
         public string DeviceId { get; init; }
         public string PublicKeyDerBase64Url { get; init; }
+        public string EncryptionPublicKeyDerBase64Url { get; init; }
+        public string EncryptionKeySignatureBase64Url { get; init; }
         public bool HardwareBacked { get; init; }
         public string Protection { get; init; }
     }
@@ -16,6 +18,7 @@ namespace Steam_Desktop_Authenticator
     internal static class DeviceIdentityStore
     {
         private const string KeyName = "SDA++ Device Identity v1";
+        private const string EncryptionKeyName = "SDA++ Device Encryption v1";
         private static readonly CngProvider[] Providers =
         {
             CngProvider.MicrosoftPlatformCryptoProvider,
@@ -27,13 +30,20 @@ namespace Steam_Desktop_Authenticator
             using CngKey key = OpenOrCreateKey();
             using ECDsaCng signer = new ECDsaCng(key);
             byte[] publicKey = signer.ExportSubjectPublicKeyInfo();
+            using CngKey encryptionKey = OpenOrCreateEncryptionKey();
+            using RSACng encryptor = new RSACng(encryptionKey);
+            byte[] encryptionPublicKey = encryptor.ExportSubjectPublicKeyInfo();
             try
             {
                 bool hardwareBacked = key.Provider == CngProvider.MicrosoftPlatformCryptoProvider;
+                string deviceId = CreateDeviceId(publicKey);
+                string encryptionPublicKeyText = Base64UrlEncode(encryptionPublicKey);
                 return new DeviceIdentityInfo
                 {
-                    DeviceId = CreateDeviceId(publicKey),
+                    DeviceId = deviceId,
                     PublicKeyDerBase64Url = Base64UrlEncode(publicKey),
+                    EncryptionPublicKeyDerBase64Url = encryptionPublicKeyText,
+                    EncryptionKeySignatureBase64Url = Sign(CanonicalEncryptionKeyBinding(deviceId, encryptionPublicKeyText)),
                     HardwareBacked = hardwareBacked,
                     Protection = hardwareBacked ? "windows-tpm" : "windows-cng-user"
                 };
@@ -41,6 +51,7 @@ namespace Steam_Desktop_Authenticator
             finally
             {
                 CryptographicOperations.ZeroMemory(publicKey);
+                CryptographicOperations.ZeroMemory(encryptionPublicKey);
             }
         }
 
@@ -71,6 +82,35 @@ namespace Steam_Desktop_Authenticator
             {
                 return false;
             }
+        }
+
+        public static bool VerifyEncryptionKeyBinding(
+            string deviceId,
+            string signingPublicKeyDerBase64Url,
+            string encryptionPublicKeyDerBase64Url,
+            string signatureBase64Url)
+        {
+            try
+            {
+                byte[] signingPublicKey = Base64UrlDecode(signingPublicKeyDerBase64Url);
+                if (!string.Equals(CreateDeviceId(signingPublicKey), deviceId, StringComparison.Ordinal)) return false;
+                return Verify(
+                    signingPublicKeyDerBase64Url,
+                    CanonicalEncryptionKeyBinding(deviceId, encryptionPublicKeyDerBase64Url),
+                    signatureBase64Url);
+            }
+            catch (Exception ex) when (ex is FormatException || ex is CryptographicException || ex is ArgumentException)
+            {
+                return false;
+            }
+        }
+
+        public static byte[] CanonicalEncryptionKeyBinding(string deviceId, string encryptionPublicKeyDerBase64Url)
+        {
+            StringBuilder builder = new StringBuilder("sdapp-device-encryption-key/v1\n");
+            AddField(builder, "deviceId", deviceId);
+            AddField(builder, "publicKey", encryptionPublicKeyDerBase64Url);
+            return Encoding.UTF8.GetBytes(builder.ToString());
         }
 
         private static CngKey OpenOrCreateKey()
@@ -110,6 +150,49 @@ namespace Steam_Desktop_Authenticator
             }
 
             throw new CryptographicException("Windows could not create the SDA++ device identity key.");
+        }
+
+        private static CngKey OpenOrCreateEncryptionKey()
+        {
+            foreach (CngProvider provider in Providers)
+            {
+                try
+                {
+                    if (CngKey.Exists(EncryptionKeyName, provider, CngKeyOpenOptions.UserKey))
+                        return CngKey.Open(EncryptionKeyName, provider, CngKeyOpenOptions.UserKey);
+                }
+                catch (CryptographicException)
+                {
+                    // Try the next provider before creating a replacement key.
+                }
+            }
+
+            foreach (CngProvider provider in Providers)
+            {
+                try
+                {
+                    CngKeyCreationParameters parameters = new CngKeyCreationParameters
+                    {
+                        Provider = provider,
+                        KeyCreationOptions = CngKeyCreationOptions.None,
+                        ExportPolicy = CngExportPolicies.None,
+                        KeyUsage = CngKeyUsages.Decryption
+                    };
+                    parameters.Parameters.Add(new CngProperty("Length", BitConverter.GetBytes(2048), CngPropertyOptions.None));
+                    return CngKey.Create(CngAlgorithm.Rsa, EncryptionKeyName, parameters);
+                }
+                catch (CryptographicException)
+                {
+                    // TPM may not support this key; use the current-user CNG provider.
+                }
+            }
+            throw new CryptographicException("Windows could not create the SDA++ device encryption key.");
+        }
+
+        private static void AddField(StringBuilder builder, string name, string value)
+        {
+            value ??= string.Empty;
+            builder.Append(name).Append('=').Append(Encoding.UTF8.GetByteCount(value)).Append(':').Append(value).Append('\n');
         }
 
         private static string CreateDeviceId(byte[] publicKey)

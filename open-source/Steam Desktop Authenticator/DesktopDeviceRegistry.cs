@@ -30,6 +30,10 @@ namespace Steam_Desktop_Authenticator
         public int AdminPinIterations { get; set; }
         public int AdminPinFailedAttempts { get; set; }
         public long? AdminPinLockedUntil { get; set; }
+        public string AdminDeviceId { get; set; } = string.Empty;
+        public string AdminPublicKey { get; set; } = string.Empty;
+        public string AdminEncryptionPublicKey { get; set; } = string.Empty;
+        public string AdminEncryptionKeySignature { get; set; } = string.Empty;
     }
 
     internal sealed class DesktopRegistryDevice
@@ -41,6 +45,9 @@ namespace Steam_Desktop_Authenticator
         [JsonProperty("expiresAt")] public long? ExpiresAt { get; set; }
         [JsonProperty("revokedAt")] public long? RevokedAt { get; set; }
         [JsonProperty("lockedAt")] public long? LockedAt { get; set; }
+        [JsonProperty("publicKey")] public string PublicKey { get; set; }
+        [JsonProperty("encryptionPublicKey")] public string EncryptionPublicKey { get; set; }
+        [JsonProperty("encryptionKeySignature")] public string EncryptionKeySignature { get; set; }
     }
 
     internal sealed class DesktopDeviceInvitation
@@ -167,7 +174,9 @@ namespace Steam_Desktop_Authenticator
             {
                 ["role"] = "Admin",
                 ["displayName"] = (displayName ?? Environment.MachineName).Substring(0, Math.Min((displayName ?? Environment.MachineName).Length, 64)),
-                ["keyProtection"] = identity.Protection
+                ["keyProtection"] = identity.Protection,
+                ["encryptionPublicKey"] = identity.EncryptionPublicKeyDerBase64Url,
+                ["encryptionKeySignature"] = identity.EncryptionKeySignatureBase64Url
             };
             await SendAsync(endpoint, $"/v1/trust/{vaultId}/bootstrap", HttpMethod.Put, body, true, null, token);
             DesktopRegistrySettings previous = DesktopRegistrySettingsStore.Load();
@@ -176,6 +185,10 @@ namespace Steam_Desktop_Authenticator
                 VaultId = vaultId,
                 RelayUrl = endpoint,
                 Role = "Admin",
+                AdminDeviceId = identity.DeviceId,
+                AdminPublicKey = identity.PublicKeyDerBase64Url,
+                AdminEncryptionPublicKey = identity.EncryptionPublicKeyDerBase64Url,
+                AdminEncryptionKeySignature = identity.EncryptionKeySignatureBase64Url,
                 AdminPinSalt = previous.AdminPinSalt,
                 AdminPinHash = previous.AdminPinHash,
                 AdminPinIterations = previous.AdminPinIterations,
@@ -300,6 +313,7 @@ namespace Steam_Desktop_Authenticator
             long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             long expiresAt = now + (long)TimeSpan.FromMinutes(5).TotalMilliseconds;
             long? deviceExpiresAt = role == "Temporary" ? now + (long)TimeSpan.FromHours(24).TotalMilliseconds : null;
+            DeviceIdentityInfo adminIdentity = DeviceIdentityStore.GetInfo();
             JObject grant = new JObject
             {
                 ["version"] = 1,
@@ -310,7 +324,11 @@ namespace Steam_Desktop_Authenticator
                 ["issuedAt"] = now,
                 ["expiresAt"] = deviceExpiresAt,
                 ["offlineWipeAfterHours"] = role == "TrustedOffline" ? 168 : null,
-                ["accountPayloads"] = accountPayloads
+                ["accountPayloads"] = accountPayloads,
+                ["adminDeviceId"] = adminIdentity.DeviceId,
+                ["adminPublicKey"] = adminIdentity.PublicKeyDerBase64Url,
+                ["adminEncryptionPublicKey"] = adminIdentity.EncryptionPublicKeyDerBase64Url,
+                ["adminEncryptionKeySignature"] = adminIdentity.EncryptionKeySignatureBase64Url
             };
             string envelope = EncryptGrant(Encoding.UTF8.GetBytes(grant.ToString(Formatting.None)), inviteToken, settings.VaultId, inviteId);
             JObject body = new JObject
@@ -347,13 +365,25 @@ namespace Steam_Desktop_Authenticator
             {
                 ["displayName"] = Environment.MachineName.Substring(0, Math.Min(Environment.MachineName.Length, 64)),
                 ["keyProtection"] = identity.Protection,
-                ["verificationCode"] = verificationCode
+                ["verificationCode"] = verificationCode,
+                ["encryptionPublicKey"] = identity.EncryptionPublicKeyDerBase64Url,
+                ["encryptionKeySignature"] = identity.EncryptionKeySignatureBase64Url
             };
             JObject response = await SendAsync(endpoint, $"/v1/trust/{vaultId}/invites/{inviteId}/claim", HttpMethod.Put, body, true, inviteToken, token);
             byte[] grantBytes = DecryptGrant(response.Value<string>("grantEnvelope"), inviteToken, vaultId, inviteId);
             try
             {
                 JObject grant = JObject.Parse(Encoding.UTF8.GetString(grantBytes));
+                string adminDeviceId = grant.Value<string>("adminDeviceId") ?? string.Empty;
+                string adminPublicKey = grant.Value<string>("adminPublicKey") ?? string.Empty;
+                string adminEncryptionPublicKey = grant.Value<string>("adminEncryptionPublicKey") ?? string.Empty;
+                string adminEncryptionKeySignature = grant.Value<string>("adminEncryptionKeySignature") ?? string.Empty;
+                if (!DeviceIdentityStore.VerifyEncryptionKeyBinding(
+                    adminDeviceId,
+                    adminPublicKey,
+                    adminEncryptionPublicKey,
+                    adminEncryptionKeySignature))
+                    throw new InvalidOperationException("The Admin encryption identity is invalid.");
                 DesktopRegistrySettings settings = new DesktopRegistrySettings
                 {
                     VaultId = vaultId,
@@ -363,7 +393,11 @@ namespace Steam_Desktop_Authenticator
                     Capabilities = grant["capabilities"]?.Values<string>().ToHashSet(StringComparer.Ordinal) ?? new HashSet<string>(),
                     ExpiresAt = grant.Value<long?>("expiresAt"),
                     OfflineWipeAfterHours = grant.Value<int?>("offlineWipeAfterHours"),
-                    LastSuccessfulHeartbeatAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                    LastSuccessfulHeartbeatAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    AdminDeviceId = adminDeviceId,
+                    AdminPublicKey = adminPublicKey,
+                    AdminEncryptionPublicKey = adminEncryptionPublicKey,
+                    AdminEncryptionKeySignature = adminEncryptionKeySignature
                 };
                 DesktopRegistrySettingsStore.Save(settings);
                 ImportGrantedAccounts(grant, settings, localVaultPassKey);
