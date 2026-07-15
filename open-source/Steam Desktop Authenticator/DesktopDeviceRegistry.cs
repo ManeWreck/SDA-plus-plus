@@ -34,6 +34,8 @@ namespace Steam_Desktop_Authenticator
         public string AdminPublicKey { get; set; } = string.Empty;
         public string AdminEncryptionPublicKey { get; set; } = string.Empty;
         public string AdminEncryptionKeySignature { get; set; } = string.Empty;
+        public string RemoteAuthorization { get; set; } = string.Empty;
+        public string RemoteAuthorizationSignature { get; set; } = string.Empty;
     }
 
     internal sealed class DesktopRegistryDevice
@@ -48,6 +50,7 @@ namespace Steam_Desktop_Authenticator
         [JsonProperty("publicKey")] public string PublicKey { get; set; }
         [JsonProperty("encryptionPublicKey")] public string EncryptionPublicKey { get; set; }
         [JsonProperty("encryptionKeySignature")] public string EncryptionKeySignature { get; set; }
+        [JsonProperty("grantFingerprint")] public string GrantFingerprint { get; set; }
     }
 
     internal sealed class DesktopDeviceInvitation
@@ -76,6 +79,7 @@ namespace Steam_Desktop_Authenticator
         public string RequesterPublicKey { get; init; }
         public string RequesterEncryptionPublicKey { get; init; }
         public string RequesterEncryptionKeySignature { get; init; }
+        public RemoteActionAuthorization Authorization { get; init; }
     }
 
     internal sealed class DesktopRemoteActionResult
@@ -336,6 +340,22 @@ namespace Steam_Desktop_Authenticator
             long expiresAt = now + (long)TimeSpan.FromMinutes(5).TotalMilliseconds;
             long? deviceExpiresAt = role == "Temporary" ? now + (long)TimeSpan.FromHours(24).TotalMilliseconds : null;
             DeviceIdentityInfo adminIdentity = DeviceIdentityStore.GetInfo();
+            RemoteActionAuthorization authorization = new RemoteActionAuthorization
+            {
+                VaultId = settings.VaultId,
+                InviteId = inviteId,
+                IssuerDeviceId = adminIdentity.DeviceId,
+                Role = role,
+                IssuedAt = now,
+                ExpiresAt = deviceExpiresAt,
+                AccountSteamIds = steamIds.ToHashSet(StringComparer.Ordinal),
+                Capabilities = (role == "Admin" ? Array.Empty<string>() : capabilities ?? Array.Empty<string>())
+                    .ToHashSet(StringComparer.Ordinal)
+            };
+            byte[] authorizationBytes = RemoteActionAuthorizationCodec.Canonical(authorization);
+            string authorizationText = Base64Url(authorizationBytes);
+            string authorizationSignature = DeviceIdentityStore.Sign(authorizationBytes);
+            string grantFingerprint = RemoteActionAuthorizationCodec.Fingerprint(authorizationBytes);
             JObject grant = new JObject
             {
                 ["version"] = 1,
@@ -350,7 +370,9 @@ namespace Steam_Desktop_Authenticator
                 ["adminDeviceId"] = adminIdentity.DeviceId,
                 ["adminPublicKey"] = adminIdentity.PublicKeyDerBase64Url,
                 ["adminEncryptionPublicKey"] = adminIdentity.EncryptionPublicKeyDerBase64Url,
-                ["adminEncryptionKeySignature"] = adminIdentity.EncryptionKeySignatureBase64Url
+                ["adminEncryptionKeySignature"] = adminIdentity.EncryptionKeySignatureBase64Url,
+                ["remoteAuthorization"] = authorizationText,
+                ["remoteAuthorizationSignature"] = authorizationSignature
             };
             string envelope = EncryptGrant(Encoding.UTF8.GetBytes(grant.ToString(Formatting.None)), inviteToken, settings.VaultId, inviteId);
             JObject body = new JObject
@@ -361,7 +383,8 @@ namespace Steam_Desktop_Authenticator
                 ["role"] = role,
                 ["expiresAt"] = expiresAt,
                 ["deviceExpiresAt"] = deviceExpiresAt,
-                ["grantEnvelope"] = envelope
+                ["grantEnvelope"] = envelope,
+                ["grantFingerprint"] = grantFingerprint
             };
             await SendAsync(settings.RelayUrl, $"/v1/trust/{settings.VaultId}/invites", HttpMethod.Post, body, false, null, cancellationToken);
             string qr = $"sdapp://device-enroll?v=1&relay={Uri.EscapeDataString(settings.RelayUrl)}&vault={settings.VaultId}&invite={inviteId}&token={inviteToken}&exp={expiresAt}";
@@ -400,6 +423,27 @@ namespace Steam_Desktop_Authenticator
                 string adminPublicKey = grant.Value<string>("adminPublicKey") ?? string.Empty;
                 string adminEncryptionPublicKey = grant.Value<string>("adminEncryptionPublicKey") ?? string.Empty;
                 string adminEncryptionKeySignature = grant.Value<string>("adminEncryptionKeySignature") ?? string.Empty;
+                string authorizationText = grant.Value<string>("remoteAuthorization") ?? string.Empty;
+                string authorizationSignature = grant.Value<string>("remoteAuthorizationSignature") ?? string.Empty;
+                byte[] authorizationBytes = Base64UrlDecode(authorizationText);
+                RemoteActionAuthorization authorization = RemoteActionAuthorizationCodec.Parse(authorizationBytes);
+                HashSet<string> grantedIds = grant["accountSteamIds"]?.Values<string>().ToHashSet(StringComparer.Ordinal)
+                    ?? new HashSet<string>(StringComparer.Ordinal);
+                HashSet<string> grantedCapabilities = grant["capabilities"]?.Values<string>().ToHashSet(StringComparer.Ordinal)
+                    ?? new HashSet<string>(StringComparer.Ordinal);
+                DesktopRegistryDevice claimedDevice = response["device"]?.ToObject<DesktopRegistryDevice>()
+                    ?? throw new InvalidOperationException("The claimed device response is invalid.");
+                if (authorization.VaultId != vaultId || authorization.InviteId != inviteId ||
+                    authorization.IssuerDeviceId != adminDeviceId || authorization.Role != grant.Value<string>("role") ||
+                    authorization.Role != claimedDevice.Role || authorization.IssuedAt != grant.Value<long>("issuedAt") ||
+                    !authorization.AccountSteamIds.SetEquals(grantedIds) ||
+                    !authorization.Capabilities.SetEquals(grantedCapabilities) ||
+                    authorization.ExpiresAt != grant.Value<long?>("expiresAt"))
+                    throw new InvalidOperationException("The remote action authorization does not match the invitation.");
+                if (!DeviceIdentityStore.Verify(adminPublicKey, authorizationBytes, authorizationSignature))
+                    throw new InvalidOperationException("The remote action authorization signature is invalid.");
+                if (!string.Equals(claimedDevice.GrantFingerprint, RemoteActionAuthorizationCodec.Fingerprint(authorizationBytes), StringComparison.Ordinal))
+                    throw new InvalidOperationException("The remote action authorization is not bound to this device.");
                 if (!DeviceIdentityStore.VerifyEncryptionKeyBinding(
                     adminDeviceId,
                     adminPublicKey,
@@ -411,15 +455,17 @@ namespace Steam_Desktop_Authenticator
                     VaultId = vaultId,
                     RelayUrl = endpoint,
                     Role = grant.Value<string>("role"),
-                    GrantedAccountSteamIds = grant["accountSteamIds"]?.Values<string>().ToHashSet(StringComparer.Ordinal) ?? new HashSet<string>(),
-                    Capabilities = grant["capabilities"]?.Values<string>().ToHashSet(StringComparer.Ordinal) ?? new HashSet<string>(),
+                    GrantedAccountSteamIds = grantedIds,
+                    Capabilities = grantedCapabilities,
                     ExpiresAt = grant.Value<long?>("expiresAt"),
                     OfflineWipeAfterHours = grant.Value<int?>("offlineWipeAfterHours"),
                     LastSuccessfulHeartbeatAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                     AdminDeviceId = adminDeviceId,
                     AdminPublicKey = adminPublicKey,
                     AdminEncryptionPublicKey = adminEncryptionPublicKey,
-                    AdminEncryptionKeySignature = adminEncryptionKeySignature
+                    AdminEncryptionKeySignature = adminEncryptionKeySignature,
+                    RemoteAuthorization = authorizationText,
+                    RemoteAuthorizationSignature = authorizationSignature
                 };
                 DesktopRegistrySettingsStore.Save(settings);
                 ImportGrantedAccounts(grant, settings, localVaultPassKey);
@@ -460,10 +506,31 @@ namespace Steam_Desktop_Authenticator
                 throw new InvalidOperationException("Remote action is not granted.");
             if (string.IsNullOrWhiteSpace(settings.AdminEncryptionPublicKey))
                 throw new InvalidOperationException("Admin encryption identity is missing.");
+            if (string.IsNullOrWhiteSpace(settings.RemoteAuthorization) ||
+                string.IsNullOrWhiteSpace(settings.RemoteAuthorizationSignature))
+                throw new InvalidOperationException("Pair this device again to enable secure remote actions.");
+            byte[] authorizationBytes = Base64UrlDecode(settings.RemoteAuthorization);
+            RemoteActionAuthorization authorization = RemoteActionAuthorizationCodec.Parse(authorizationBytes);
+            if (authorization.VaultId != settings.VaultId || authorization.Role != settings.Role ||
+                !authorization.AccountSteamIds.SetEquals(settings.GrantedAccountSteamIds) ||
+                !authorization.Capabilities.SetEquals(settings.Capabilities) ||
+                authorization.IssuerDeviceId != settings.AdminDeviceId ||
+                (authorization.ExpiresAt != null && authorization.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) ||
+                !authorization.Capabilities.Contains(kind))
+                throw new InvalidOperationException("Remote action authorization is invalid or expired.");
+            if (!DeviceIdentityStore.Verify(settings.AdminPublicKey, authorizationBytes, settings.RemoteAuthorizationSignature))
+                throw new CryptographicException("Remote action authorization signature is invalid.");
             string actionId = Guid.NewGuid().ToString("D");
+            byte[] authorizedPayload = Encoding.UTF8.GetBytes(new JObject
+            {
+                ["authorization"] = settings.RemoteAuthorization,
+                ["authorizationSignature"] = settings.RemoteAuthorizationSignature,
+                ["issuerPublicKey"] = settings.AdminPublicKey,
+                ["payload"] = Base64Url(payload)
+            }.ToString(Formatting.None));
             string envelope = DeviceIdentityStore.EncryptRemoteAction(
                 settings.AdminEncryptionPublicKey,
-                payload,
+                authorizedPayload,
                 settings.VaultId,
                 actionId,
                 "request");
@@ -489,6 +556,10 @@ namespace Steam_Desktop_Authenticator
             CancellationToken token)
         {
             if (settings.Role != "Admin") throw new InvalidOperationException("Admin role required.");
+            Dictionary<string, DesktopRegistryDevice> activeAdmins = (await ListDevicesAsync(settings, token))
+                .Where(device => device.Role == "Admin" && device.RevokedAt == null &&
+                    (device.ExpiresAt == null || device.ExpiresAt > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()))
+                .ToDictionary(device => device.DeviceId, StringComparer.Ordinal);
             JObject response = await SendAsync(
                 settings.RelayUrl,
                 $"/v1/trust/{settings.VaultId}/actions",
@@ -504,6 +575,8 @@ namespace Steam_Desktop_Authenticator
                 string requesterPublicKey = action.Value<string>("requesterPublicKey") ?? string.Empty;
                 string requesterEncryptionPublicKey = action.Value<string>("requesterEncryptionPublicKey") ?? string.Empty;
                 string requesterEncryptionKeySignature = action.Value<string>("requesterEncryptionKeySignature") ?? string.Empty;
+                string requesterRole = action.Value<string>("requesterRole") ?? string.Empty;
+                string requesterGrantFingerprint = action.Value<string>("requesterGrantFingerprint") ?? string.Empty;
                 if (!DeviceIdentityStore.VerifyEncryptionKeyBinding(
                     requestedBy,
                     requesterPublicKey,
@@ -511,21 +584,41 @@ namespace Steam_Desktop_Authenticator
                     requesterEncryptionKeySignature))
                     throw new CryptographicException("Remote action device identity is invalid.");
                 string actionId = action.Value<string>("actionId") ?? string.Empty;
+                byte[] decrypted = DeviceIdentityStore.DecryptRemoteAction(
+                    action.Value<string>("requestEnvelope"),
+                    settings.VaultId,
+                    actionId,
+                    "request");
+                JObject authorizedPayload;
+                try { authorizedPayload = JObject.Parse(Encoding.UTF8.GetString(decrypted)); }
+                finally { CryptographicOperations.ZeroMemory(decrypted); }
+                byte[] authorizationBytes = Base64UrlDecode(authorizedPayload.Value<string>("authorization") ?? string.Empty);
+                RemoteActionAuthorization authorization = RemoteActionAuthorizationCodec.Parse(authorizationBytes);
+                string issuerPublicKey = authorizedPayload.Value<string>("issuerPublicKey") ?? string.Empty;
+                activeAdmins.TryGetValue(authorization.IssuerDeviceId, out DesktopRegistryDevice issuer);
+                if (RemoteActionAuthorizationCodec.Fingerprint(authorizationBytes) != requesterGrantFingerprint ||
+                    authorization.VaultId != settings.VaultId || authorization.Role != requesterRole ||
+                    !authorization.Capabilities.Contains(action.Value<string>("kind") ?? string.Empty) ||
+                    (authorization.ExpiresAt != null && authorization.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) ||
+                    issuer?.PublicKey != issuerPublicKey)
+                    throw new CryptographicException("Remote action grant is invalid or expired.");
+                if (!DeviceIdentityStore.Verify(
+                    issuerPublicKey,
+                    authorizationBytes,
+                    authorizedPayload.Value<string>("authorizationSignature") ?? string.Empty))
+                    throw new CryptographicException("Remote action authorization signature is invalid.");
                 result.Add(new DesktopRemoteActionRequest
                 {
                     ActionId = actionId,
                     RequestedBy = requestedBy,
                     Kind = action.Value<string>("kind") ?? string.Empty,
-                    Payload = DeviceIdentityStore.DecryptRemoteAction(
-                        action.Value<string>("requestEnvelope"),
-                        settings.VaultId,
-                        actionId,
-                        "request"),
+                    Payload = Base64UrlDecode(authorizedPayload.Value<string>("payload") ?? string.Empty),
                     CreatedAt = action.Value<long>("createdAt"),
                     ExpiresAt = action.Value<long>("expiresAt"),
                     RequesterPublicKey = requesterPublicKey,
                     RequesterEncryptionPublicKey = requesterEncryptionPublicKey,
-                    RequesterEncryptionKeySignature = requesterEncryptionKeySignature
+                    RequesterEncryptionKeySignature = requesterEncryptionKeySignature,
+                    Authorization = authorization
                 });
             }
             return result;

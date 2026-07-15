@@ -16,6 +16,35 @@ Type envelopeCodec = application.GetType(
 MethodInfo associatedData = envelopeCodec.GetMethod(
     "AssociatedData",
     BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!;
+Type authorizationType = application.GetType(
+    "Steam_Desktop_Authenticator.RemoteActionAuthorization",
+    throwOnError: true)!;
+Type authorizationCodec = application.GetType(
+    "Steam_Desktop_Authenticator.RemoteActionAuthorizationCodec",
+    throwOnError: true)!;
+object authorization = Activator.CreateInstance(authorizationType)!;
+authorizationType.GetProperty("VaultId")!.SetValue(authorization, "ABCDEFGHIJKLMNOPQRSTUV");
+authorizationType.GetProperty("InviteId")!.SetValue(authorization, "ZYXWVUTSRQPONMLKJIHGFE");
+authorizationType.GetProperty("IssuerDeviceId")!.SetValue(authorization, "abcdefghijklmnopqrstuv");
+authorizationType.GetProperty("Role")!.SetValue(authorization, "TrustedOnline");
+authorizationType.GetProperty("IssuedAt")!.SetValue(authorization, 1_700_000_000_000L);
+authorizationType.GetProperty("ExpiresAt")!.SetValue(authorization, null);
+authorizationType.GetProperty("AccountSteamIds")!.SetValue(
+    authorization,
+    new HashSet<string> { "76561198000000002", "76561198000000001" });
+authorizationType.GetProperty("Capabilities")!.SetValue(
+    authorization,
+    new HashSet<string> { "ApproveSteamQr", "ViewGuardCode" });
+byte[] authorizationCanonical = (byte[])authorizationCodec.GetMethod(
+    "Canonical",
+    BindingFlags.Public | BindingFlags.Static)!.Invoke(null, new[] { authorization })!;
+bool authorizationFixtureMatches = Encoding.UTF8.GetString(authorizationCanonical) ==
+    "{\"version\":1,\"vaultId\":\"ABCDEFGHIJKLMNOPQRSTUV\"," +
+    "\"inviteId\":\"ZYXWVUTSRQPONMLKJIHGFE\"," +
+    "\"issuerDeviceId\":\"abcdefghijklmnopqrstuv\"," +
+    "\"role\":\"TrustedOnline\",\"issuedAt\":1700000000000,\"expiresAt\":null," +
+    "\"accountSteamIds\":[\"76561198000000001\",\"76561198000000002\"]," +
+    "\"capabilities\":[\"ApproveSteamQr\",\"ViewGuardCode\"]}";
 
 object first = getInfo.Invoke(null, null)!;
 object second = getInfo.Invoke(null, null)!;
@@ -77,6 +106,8 @@ Console.WriteLine($"EncryptionBindingTamperRejected={!encryptionBindingTampered}
 Console.WriteLine($"RemoteActionRoundTrip={actionPayload.SequenceEqual(decryptedAction)}");
 Console.WriteLine($"RemoteActionContextFixtureMatches={actionContextFixtureMatches}");
 Console.WriteLine($"RemoteActionContextTamperRejected={actionContextTamperRejected}");
+Console.WriteLine($"RemoteActionAuthorizationFixtureMatches={authorizationFixtureMatches}");
 
 return firstId == secondId && valid && !tampered && encryptionBindingValid && !encryptionBindingTampered &&
-    actionPayload.SequenceEqual(decryptedAction) && actionContextFixtureMatches && actionContextTamperRejected ? 0 : 1;
+    actionPayload.SequenceEqual(decryptedAction) && actionContextFixtureMatches && actionContextTamperRejected &&
+    authorizationFixtureMatches ? 0 : 1;
