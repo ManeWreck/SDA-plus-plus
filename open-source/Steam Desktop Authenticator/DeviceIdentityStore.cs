@@ -113,6 +113,57 @@ namespace Steam_Desktop_Authenticator
             return Encoding.UTF8.GetBytes(builder.ToString());
         }
 
+        public static string EncryptRemoteAction(
+            string recipientEncryptionPublicKey,
+            byte[] plaintext,
+            string vaultId,
+            string actionId,
+            string direction)
+        {
+            if (plaintext == null || plaintext.Length > 96 * 1024) throw new ArgumentException("Remote action payload is too large.");
+            byte[] aesKey = RandomNumberGenerator.GetBytes(32);
+            byte[] nonce = RandomNumberGenerator.GetBytes(12);
+            byte[] ciphertext = new byte[plaintext.Length];
+            byte[] tag = new byte[16];
+            try
+            {
+                using AesGcm aes = new AesGcm(aesKey, 16);
+                aes.Encrypt(nonce, plaintext, ciphertext, tag, RemoteActionEnvelopeCodec.AssociatedData(vaultId, actionId, direction));
+                using RSA rsa = RSA.Create();
+                rsa.ImportSubjectPublicKeyInfo(Base64UrlDecode(recipientEncryptionPublicKey), out _);
+                return RemoteActionEnvelopeCodec.Encode(new RemoteActionEnvelope
+                {
+                    WrappedKey = rsa.Encrypt(aesKey, RSAEncryptionPadding.OaepSHA256),
+                    Nonce = nonce,
+                    Ciphertext = ciphertext,
+                    Tag = tag
+                });
+            }
+            finally { CryptographicOperations.ZeroMemory(aesKey); }
+        }
+
+        public static byte[] DecryptRemoteAction(string envelopeValue, string vaultId, string actionId, string direction)
+        {
+            RemoteActionEnvelope envelope = RemoteActionEnvelopeCodec.Decode(envelopeValue);
+            byte[] aesKey;
+            using (CngKey encryptionKey = OpenOrCreateEncryptionKey())
+            using (RSACng rsa = new RSACng(encryptionKey))
+                aesKey = rsa.Decrypt(envelope.WrappedKey, RSAEncryptionPadding.OaepSHA256);
+            try
+            {
+                byte[] plaintext = new byte[envelope.Ciphertext.Length];
+                using AesGcm aes = new AesGcm(aesKey, 16);
+                aes.Decrypt(
+                    envelope.Nonce,
+                    envelope.Ciphertext,
+                    envelope.Tag,
+                    plaintext,
+                    RemoteActionEnvelopeCodec.AssociatedData(vaultId, actionId, direction));
+                return plaintext;
+            }
+            finally { CryptographicOperations.ZeroMemory(aesKey); }
+        }
+
         private static CngKey OpenOrCreateKey()
         {
             foreach (CngProvider provider in Providers)

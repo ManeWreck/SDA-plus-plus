@@ -65,6 +65,28 @@ namespace Steam_Desktop_Authenticator
         [JsonProperty("expiresAt")] public long ExpiresAt { get; set; }
     }
 
+    internal sealed class DesktopRemoteActionRequest
+    {
+        public string ActionId { get; init; }
+        public string RequestedBy { get; init; }
+        public string Kind { get; init; }
+        public byte[] Payload { get; init; }
+        public long CreatedAt { get; init; }
+        public long ExpiresAt { get; init; }
+        public string RequesterPublicKey { get; init; }
+        public string RequesterEncryptionPublicKey { get; init; }
+        public string RequesterEncryptionKeySignature { get; init; }
+    }
+
+    internal sealed class DesktopRemoteActionResult
+    {
+        public string ActionId { get; init; }
+        public string Kind { get; init; }
+        public string Status { get; init; }
+        public byte[] ResponsePayload { get; init; }
+        public long ExpiresAt { get; init; }
+    }
+
     internal sealed class DesktopRegistryAuditEvent
     {
         [JsonProperty("eventId")] public string EventId { get; set; }
@@ -426,6 +448,158 @@ namespace Steam_Desktop_Authenticator
             return response.Value<int>("revoked");
         }
 
+        public async Task<string> RequestRemoteActionAsync(
+            DesktopRegistrySettings settings,
+            string kind,
+            byte[] payload,
+            CancellationToken token)
+        {
+            if (settings.Role != "TrustedOnline" && settings.Role != "Temporary")
+                throw new InvalidOperationException("Only Trusted Online or Temporary devices can request remote actions.");
+            if (!RemoteActionKinds.Contains(kind) || !settings.Capabilities.Contains(kind))
+                throw new InvalidOperationException("Remote action is not granted.");
+            if (string.IsNullOrWhiteSpace(settings.AdminEncryptionPublicKey))
+                throw new InvalidOperationException("Admin encryption identity is missing.");
+            string actionId = Guid.NewGuid().ToString("D");
+            string envelope = DeviceIdentityStore.EncryptRemoteAction(
+                settings.AdminEncryptionPublicKey,
+                payload,
+                settings.VaultId,
+                actionId,
+                "request");
+            await SendAsync(
+                settings.RelayUrl,
+                $"/v1/trust/{settings.VaultId}/actions",
+                HttpMethod.Post,
+                new JObject
+                {
+                    ["actionId"] = actionId,
+                    ["kind"] = kind,
+                    ["requestEnvelope"] = envelope,
+                    ["expiresAt"] = DateTimeOffset.UtcNow.AddMinutes(2).ToUnixTimeMilliseconds()
+                },
+                false,
+                null,
+                token);
+            return actionId;
+        }
+
+        public async Task<IReadOnlyList<DesktopRemoteActionRequest>> PendingRemoteActionsAsync(
+            DesktopRegistrySettings settings,
+            CancellationToken token)
+        {
+            if (settings.Role != "Admin") throw new InvalidOperationException("Admin role required.");
+            JObject response = await SendAsync(
+                settings.RelayUrl,
+                $"/v1/trust/{settings.VaultId}/actions",
+                HttpMethod.Get,
+                null,
+                false,
+                null,
+                token);
+            List<DesktopRemoteActionRequest> result = new List<DesktopRemoteActionRequest>();
+            foreach (JObject action in response["actions"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
+            {
+                string requestedBy = action.Value<string>("requestedBy") ?? string.Empty;
+                string requesterPublicKey = action.Value<string>("requesterPublicKey") ?? string.Empty;
+                string requesterEncryptionPublicKey = action.Value<string>("requesterEncryptionPublicKey") ?? string.Empty;
+                string requesterEncryptionKeySignature = action.Value<string>("requesterEncryptionKeySignature") ?? string.Empty;
+                if (!DeviceIdentityStore.VerifyEncryptionKeyBinding(
+                    requestedBy,
+                    requesterPublicKey,
+                    requesterEncryptionPublicKey,
+                    requesterEncryptionKeySignature))
+                    throw new CryptographicException("Remote action device identity is invalid.");
+                string actionId = action.Value<string>("actionId") ?? string.Empty;
+                result.Add(new DesktopRemoteActionRequest
+                {
+                    ActionId = actionId,
+                    RequestedBy = requestedBy,
+                    Kind = action.Value<string>("kind") ?? string.Empty,
+                    Payload = DeviceIdentityStore.DecryptRemoteAction(
+                        action.Value<string>("requestEnvelope"),
+                        settings.VaultId,
+                        actionId,
+                        "request"),
+                    CreatedAt = action.Value<long>("createdAt"),
+                    ExpiresAt = action.Value<long>("expiresAt"),
+                    RequesterPublicKey = requesterPublicKey,
+                    RequesterEncryptionPublicKey = requesterEncryptionPublicKey,
+                    RequesterEncryptionKeySignature = requesterEncryptionKeySignature
+                });
+            }
+            return result;
+        }
+
+        public async Task RespondRemoteActionAsync(
+            DesktopRegistrySettings settings,
+            DesktopRemoteActionRequest action,
+            byte[] payload,
+            CancellationToken token)
+        {
+            if (settings.Role != "Admin") throw new InvalidOperationException("Admin role required.");
+            if (action == null || action.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
+                throw new InvalidOperationException("Remote action has expired.");
+            if (!DeviceIdentityStore.VerifyEncryptionKeyBinding(
+                action.RequestedBy,
+                action.RequesterPublicKey,
+                action.RequesterEncryptionPublicKey,
+                action.RequesterEncryptionKeySignature))
+                throw new CryptographicException("Remote action device identity is invalid.");
+            string envelope = DeviceIdentityStore.EncryptRemoteAction(
+                action.RequesterEncryptionPublicKey,
+                payload,
+                settings.VaultId,
+                action.ActionId,
+                "response");
+            await SendAsync(
+                settings.RelayUrl,
+                $"/v1/trust/{settings.VaultId}/actions/{action.ActionId}/response",
+                HttpMethod.Put,
+                new JObject { ["responseEnvelope"] = envelope },
+                false,
+                null,
+                token);
+        }
+
+        public async Task<DesktopRemoteActionResult> GetRemoteActionResultAsync(
+            DesktopRegistrySettings settings,
+            string actionId,
+            CancellationToken token)
+        {
+            JObject response = (await SendAsync(
+                settings.RelayUrl,
+                $"/v1/trust/{settings.VaultId}/actions/{actionId}",
+                HttpMethod.Get,
+                null,
+                false,
+                null,
+                token))["action"] as JObject ?? throw new InvalidOperationException("Invalid remote action response.");
+            string envelope = response.Value<string>("responseEnvelope");
+            return new DesktopRemoteActionResult
+            {
+                ActionId = actionId,
+                Kind = response.Value<string>("kind") ?? string.Empty,
+                Status = response.Value<string>("status") ?? string.Empty,
+                ResponsePayload = string.IsNullOrWhiteSpace(envelope) ? null : DeviceIdentityStore.DecryptRemoteAction(
+                    envelope,
+                    settings.VaultId,
+                    actionId,
+                    "response"),
+                ExpiresAt = response.Value<long>("expiresAt")
+            };
+        }
+
+        public Task AcknowledgeRemoteActionAsync(DesktopRegistrySettings settings, string actionId, CancellationToken token) =>
+            SendAsync(
+                settings.RelayUrl,
+                $"/v1/trust/{settings.VaultId}/actions/{actionId}/ack",
+                HttpMethod.Post,
+                null,
+                false,
+                null,
+                token);
+
         private static async Task<JObject> SendAsync(string endpoint, string path, HttpMethod method, JObject json, bool includePublicKey, string bearer, CancellationToken token)
         {
             byte[] body = json == null ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(json.ToString(Formatting.None));
@@ -553,5 +727,14 @@ namespace Steam_Desktop_Authenticator
             padded += new string('=', (4 - padded.Length % 4) % 4);
             return Convert.FromBase64String(padded);
         }
+
+        private static readonly HashSet<string> RemoteActionKinds = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "ViewGuardCode",
+            "ApproveSteamQr",
+            "ViewConfirmations",
+            "ApproveConfirmations",
+            "TerminateSessions"
+        };
     }
 }
