@@ -200,6 +200,27 @@ bool remoteFailureClassificationSafe =
     (bool)canRetryRemoteFailure.Invoke(null, new[] { offlineKind })! &&
     (bool)canRetryRemoteFailure.Invoke(null, new[] { timeoutKind })!;
 
+Type adminStepUpType = application.GetType(
+    "Steam_Desktop_Authenticator.DesktopAdminStepUp",
+    throwOnError: true)!;
+object orphanedPinSettings = Activator.CreateInstance(registrySettingsType)!;
+registrySettingsType.GetProperty("AdminPinSalt")!.SetValue(orphanedPinSettings, "fixture-salt");
+registrySettingsType.GetProperty("AdminPinHash")!.SetValue(orphanedPinSettings, "fixture-hash");
+registrySettingsType.GetProperty("AdminPinIterations")!.SetValue(orphanedPinSettings, 210000);
+MethodInfo isAdminPinConfigured = adminStepUpType.GetMethod(
+    "IsConfigured",
+    BindingFlags.Public | BindingFlags.Static)!;
+MethodInfo clearAdminPin = adminStepUpType.GetMethod(
+    "ClearPin",
+    BindingFlags.Public | BindingFlags.Static)!;
+bool configuredBeforeReset = (bool)isAdminPinConfigured.Invoke(null, new[] { orphanedPinSettings })!;
+clearAdminPin.Invoke(null, new[] { orphanedPinSettings });
+bool orphanedAdminPinRecoverySafe = configuredBeforeReset &&
+    !(bool)isAdminPinConfigured.Invoke(null, new[] { orphanedPinSettings })! &&
+    (string)registrySettingsType.GetProperty("AdminPinSalt")!.GetValue(orphanedPinSettings)! == string.Empty &&
+    (string)registrySettingsType.GetProperty("AdminPinHash")!.GetValue(orphanedPinSettings)! == string.Empty &&
+    (int)registrySettingsType.GetProperty("AdminPinIterations")!.GetValue(orphanedPinSettings)! == 0;
+
 object first = getInfo.Invoke(null, null)!;
 object second = getInfo.Invoke(null, null)!;
 Type infoType = first.GetType();
@@ -265,8 +286,9 @@ Console.WriteLine($"GuardCodeRemotePayloadFixtureMatches={guardCodeFixtureMatche
 Console.WriteLine($"SteamQrRemotePayloadFixtureMatches={steamQrFixtureMatches}");
 Console.WriteLine($"RemoteAccountPlaceholderSafe={remotePlaceholderSafe}");
 Console.WriteLine($"RemoteFailureClassificationSafe={remoteFailureClassificationSafe}");
+Console.WriteLine($"OrphanedAdminPinRecoverySafe={orphanedAdminPinRecoverySafe}");
 
 return firstId == secondId && valid && !tampered && encryptionBindingValid && !encryptionBindingTampered &&
     actionPayload.SequenceEqual(decryptedAction) && actionContextFixtureMatches && actionContextTamperRejected &&
     authorizationFixtureMatches && guardCodeFixtureMatches && steamQrFixtureMatches && remotePlaceholderSafe &&
-    remoteFailureClassificationSafe ? 0 : 1;
+    remoteFailureClassificationSafe && orphanedAdminPinRecoverySafe ? 0 : 1;

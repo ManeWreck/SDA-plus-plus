@@ -94,6 +94,7 @@ namespace Steam_Desktop_Authenticator
         private async Task LoadAsync()
         {
             settings = DesktopRegistrySettingsStore.Load();
+            DesktopAdminStepUp.ResetIfRegistryWasNotCreated(settings);
             bool configured = !string.IsNullOrWhiteSpace(settings.VaultId);
             setup.Visible = !configured;
             join.Visible = !configured;
@@ -107,9 +108,11 @@ namespace Steam_Desktop_Authenticator
 
         private async Task SetupAsync()
         {
+            bool createdPinForThisAttempt = false;
             try
             {
                 settings = DesktopRegistrySettingsStore.Load();
+                createdPinForThisAttempt = !DesktopAdminStepUp.IsConfigured(settings);
                 if (!DesktopAdminStepUp.Require(this, settings)) return;
                 SetBusy(true);
                 Manifest manifest = Manifest.GetManifest();
@@ -117,7 +120,15 @@ namespace Steam_Desktop_Authenticator
                 settings = await client.BootstrapAdminAsync(endpoint, Environment.MachineName, CancellationToken.None);
                 await LoadAsync();
             }
-            catch (Exception ex) { MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            catch (Exception ex)
+            {
+                if (createdPinForThisAttempt && string.IsNullOrWhiteSpace(settings?.VaultId))
+                {
+                    DesktopAdminStepUp.ClearPin(settings);
+                    DesktopRegistrySettingsStore.Save(settings);
+                }
+                MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
             finally { SetBusy(false); }
         }
 

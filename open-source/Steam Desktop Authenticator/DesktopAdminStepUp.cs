@@ -9,6 +9,34 @@ namespace Steam_Desktop_Authenticator
     {
         private const int Iterations = 210000;
 
+        public static bool IsConfigured(DesktopRegistrySettings settings)
+        {
+            return settings != null &&
+                !string.IsNullOrWhiteSpace(settings.AdminPinSalt) &&
+                !string.IsNullOrWhiteSpace(settings.AdminPinHash) &&
+                settings.AdminPinIterations > 0;
+        }
+
+        public static bool ResetIfRegistryWasNotCreated(DesktopRegistrySettings settings)
+        {
+            if (settings == null || !string.IsNullOrWhiteSpace(settings.VaultId) || !string.IsNullOrWhiteSpace(settings.Role) ||
+                !IsConfigured(settings)) return false;
+
+            ClearPin(settings);
+            DesktopRegistrySettingsStore.Save(settings);
+            return true;
+        }
+
+        public static void ClearPin(DesktopRegistrySettings settings)
+        {
+            if (settings == null) return;
+            settings.AdminPinSalt = string.Empty;
+            settings.AdminPinHash = string.Empty;
+            settings.AdminPinIterations = 0;
+            settings.AdminPinFailedAttempts = 0;
+            settings.AdminPinLockedUntil = null;
+        }
+
         public static bool Require(IWin32Window owner, DesktopRegistrySettings settings)
         {
             if (settings == null) return false;
@@ -21,8 +49,7 @@ namespace Steam_Desktop_Authenticator
                     Localizer.Choose("Admin PIN", "Admin PIN"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
-            bool configuring = string.IsNullOrWhiteSpace(settings.AdminPinSalt) ||
-                string.IsNullOrWhiteSpace(settings.AdminPinHash) || settings.AdminPinIterations <= 0;
+            bool configuring = !IsConfigured(settings);
             using AdminPinForm form = new AdminPinForm(configuring);
             if (form.ShowDialog(owner) != DialogResult.OK) return false;
 
