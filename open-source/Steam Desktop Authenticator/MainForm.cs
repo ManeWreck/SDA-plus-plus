@@ -1664,7 +1664,7 @@ namespace Steam_Desktop_Authenticator
                     return;
                 }
                 IReadOnlyList<DesktopRegistryCommand> commands = await client.PendingCommandsAsync(registry, CancellationToken.None);
-                foreach (DesktopRegistryCommand command in commands.OrderBy(value => value.ExpiresAt))
+                foreach (DesktopRegistryCommand command in commands.OrderBy(value => value.CreatedAt))
                 {
                     if (command.Type == "Lock")
                     {
@@ -1689,8 +1689,9 @@ namespace Steam_Desktop_Authenticator
                     }
                     else if (command.Type == "WipeLocalData")
                     {
+                        RemoveGrantedAccountData(registry);
                         await client.AcknowledgeCommandAsync(registry, command.CommandId, true, CancellationToken.None);
-                        WipeGrantedDeviceData();
+                        CompleteGrantedDeviceWipe();
                         return;
                     }
                 }
@@ -1705,6 +1706,12 @@ namespace Steam_Desktop_Authenticator
         private void WipeGrantedDeviceData()
         {
             DesktopRegistrySettings registry = DesktopRegistrySettingsStore.Load();
+            RemoveGrantedAccountData(registry);
+            CompleteGrantedDeviceWipe();
+        }
+
+        private void RemoveGrantedAccountData(DesktopRegistrySettings registry)
+        {
             HashSet<ulong> grantedIds = registry.GrantedAccountSteamIds
                 .Select(value => ulong.TryParse(value, out ulong id) ? id : 0)
                 .Where(value => value != 0)
@@ -1713,6 +1720,10 @@ namespace Steam_Desktop_Authenticator
             {
                 manifest.RemoveAccount(new SteamGuardAccount { Session = new SessionData { SteamID = entry.SteamID } }, true);
             }
+        }
+
+        private void CompleteGrantedDeviceWipe()
+        {
             DesktopRegistrySettingsStore.Clear();
             loadAccountsList();
             ShowOverlay(

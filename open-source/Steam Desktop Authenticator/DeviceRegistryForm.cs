@@ -165,10 +165,12 @@ namespace Steam_Desktop_Authenticator
                 foreach (DesktopRegistryDevice device in snapshot)
                 {
                     ListViewItem item = new ListViewItem(device.DisplayName ?? device.DeviceId) { Tag = device };
-                    item.SubItems.Add(device.Role);
+                    item.SubItems.Add(device.LockedAt != null
+                        ? device.Role + " · " + Localizer.Choose("Locked", "Заблокировано")
+                        : device.Role);
                     item.SubItems.Add(DateTimeOffset.FromUnixTimeMilliseconds(device.LastSeenAt).LocalDateTime.ToString("g"));
                     item.SubItems.Add(FormatTimestamp(device.ExpiresAt));
-                    if (device.RevokedAt != null) item.ForeColor = Branding.Danger;
+                    if (device.RevokedAt != null || device.LockedAt != null) item.ForeColor = Branding.Danger;
                     devices.Items.Add(item);
                 }
             }
@@ -190,7 +192,7 @@ namespace Steam_Desktop_Authenticator
             if (!DesktopAdminStepUp.Require(this, settings)) return;
             if (MessageBox.Show(Localizer.Choose("Revoke every non-Admin device now?", "Отозвать все не-Admin устройства сейчас?"), Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
             int count = await client.LockdownAsync(settings, CancellationToken.None);
-            MessageBox.Show(Localizer.Choose($"Revoked devices: {count}", $"Отозвано устройств: {count}"), Text);
+            MessageBox.Show(Localizer.Choose($"Locked devices: {count}", $"Заблокировано устройств: {count}"), Text);
             await RefreshAsync();
         }
 

@@ -40,6 +40,7 @@ namespace Steam_Desktop_Authenticator
         [JsonProperty("lastSeenAt")] public long LastSeenAt { get; set; }
         [JsonProperty("expiresAt")] public long? ExpiresAt { get; set; }
         [JsonProperty("revokedAt")] public long? RevokedAt { get; set; }
+        [JsonProperty("lockedAt")] public long? LockedAt { get; set; }
     }
 
     internal sealed class DesktopDeviceInvitation
@@ -53,6 +54,7 @@ namespace Steam_Desktop_Authenticator
     {
         [JsonProperty("commandId")] public string CommandId { get; set; }
         [JsonProperty("type")] public string Type { get; set; }
+        [JsonProperty("createdAt")] public long CreatedAt { get; set; }
         [JsonProperty("expiresAt")] public long ExpiresAt { get; set; }
     }
 
