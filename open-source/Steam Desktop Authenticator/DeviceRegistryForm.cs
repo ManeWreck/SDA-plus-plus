@@ -213,16 +213,23 @@ namespace Steam_Desktop_Authenticator
             {
                 Localizer.Choose("Trusted online (permissions only)", "Trusted online (только разрешения)"),
                 Localizer.Choose("Trusted offline (copies selected maFiles)", "Trusted offline (копирует выбранные maFile)"),
-                Localizer.Choose("Temporary (24 hours, permissions only)", "Temporary (24 часа, только разрешения)")
+                Localizer.Choose("Temporary (24 hours, permissions only)", "Temporary (24 часа, только разрешения)"),
+                Localizer.Choose("Admin (device management only)", "Admin (только управление устройствами)")
             });
             role.SelectedIndex = 0;
             role.SelectedIndexChanged += (_, __) =>
             {
-                hint.Text = role.SelectedIndex == 1
-                    ? Localizer.Choose(
+                accounts.Enabled = role.SelectedIndex != 3;
+                hint.Text = role.SelectedIndex switch
+                {
+                    1 => Localizer.Choose(
                         "Warning: remote wipe cannot revoke a Steam Guard secret already copied outside SDA++.",
-                        "Внимание: удалённая очистка не отзовёт Steam Guard secret, уже скопированный вне SDA++.")
-                    : Localizer.Choose("Choose accounts shared with this device.", "Выберите аккаунты, доступные этому устройству.");
+                        "Внимание: удалённая очистка не отзовёт Steam Guard secret, уже скопированный вне SDA++."),
+                    3 => Localizer.Choose(
+                        "Admin can manage devices and recovery. No accounts or Steam secrets are transferred.",
+                        "Admin может управлять устройствами и восстановлением. Аккаунты и Steam-секреты не передаются."),
+                    _ => Localizer.Choose("Choose accounts shared with this device.", "Выберите аккаунты, доступные этому устройству.")
+                };
             };
             accounts.SetBounds(24, 132, 342, 294);
             accounts.BackColor = Branding.CardBackground;
@@ -258,7 +265,8 @@ namespace Steam_Desktop_Authenticator
         private async Task CreateAsync(Button button)
         {
             List<SteamGuardAccount> selected = accounts.CheckedItems.Cast<SteamGuardAccount>().ToList();
-            if (selected.Count == 0) return;
+            bool creatingAdmin = role.SelectedIndex == 3;
+            if (!creatingAdmin && selected.Count == 0) return;
             button.Enabled = false;
             try
             {
@@ -266,13 +274,16 @@ namespace Steam_Desktop_Authenticator
                 {
                     1 => "TrustedOffline",
                     2 => "Temporary",
+                    3 => "Admin",
                     _ => "TrustedOnline"
                 };
                 DesktopDeviceInvitation invitation = await new DesktopDeviceRegistryClient().CreateInvitationAsync(
                     settings,
                     roleValue,
-                    selected,
-                    new[] { "ViewGuardCode", "ApproveSteamQr", "ViewConfirmations", "ApproveConfirmations" },
+                    creatingAdmin ? Array.Empty<SteamGuardAccount>() : selected,
+                    creatingAdmin
+                        ? Array.Empty<string>()
+                        : new[] { "ViewGuardCode", "ApproveSteamQr", "ViewConfirmations", "ApproveConfirmations" },
                     CancellationToken.None);
                 accounts.Visible = false;
                 role.Visible = false;

@@ -183,14 +183,15 @@ namespace Steam_Desktop_Authenticator
             IEnumerable<string> capabilities,
             CancellationToken cancellationToken)
         {
-            if (role != "TrustedOnline" && role != "TrustedOffline" && role != "Temporary")
+            if (role != "Admin" && role != "TrustedOnline" && role != "TrustedOffline" && role != "Temporary")
                 throw new InvalidOperationException("Invalid device role.");
             SteamGuardAccount[] accountList = selectedAccounts?.Where(account => account?.Session != null)
                 .GroupBy(account => account.Session.SteamID)
                 .Select(group => group.First())
                 .ToArray()
                 ?? Array.Empty<SteamGuardAccount>();
-            if (accountList.Length == 0) throw new InvalidOperationException("Select at least one account.");
+            if (role != "Admin" && accountList.Length == 0) throw new InvalidOperationException("Select at least one account.");
+            if (role == "Admin") accountList = Array.Empty<SteamGuardAccount>();
             string[] steamIds = accountList.Select(account => account.Session.SteamID.ToString()).Distinct().ToArray();
             JArray accountPayloads = new JArray();
             int payloadBytes = 0;
@@ -223,7 +224,8 @@ namespace Steam_Desktop_Authenticator
                 ["version"] = 1,
                 ["role"] = role,
                 ["accountSteamIds"] = new JArray(steamIds.Distinct().OrderBy(value => value, StringComparer.Ordinal)),
-                ["capabilities"] = new JArray(capabilities.Distinct().OrderBy(value => value, StringComparer.Ordinal)),
+                ["capabilities"] = new JArray((role == "Admin" ? Array.Empty<string>() : capabilities ?? Array.Empty<string>())
+                    .Distinct().OrderBy(value => value, StringComparer.Ordinal)),
                 ["issuedAt"] = now,
                 ["expiresAt"] = deviceExpiresAt,
                 ["offlineWipeAfterHours"] = role == "TrustedOffline" ? 168 : null,
