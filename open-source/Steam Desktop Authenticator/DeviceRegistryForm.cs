@@ -537,13 +537,42 @@ namespace Steam_Desktop_Authenticator
         }
     }
 
+    internal sealed class DeviceInvitationAccountChoice
+    {
+        public SteamGuardAccount Account { get; }
+        public string AccountName { get; }
+        public string SteamId { get; }
+
+        public DeviceInvitationAccountChoice(SteamGuardAccount account)
+        {
+            Account = account ?? throw new ArgumentNullException(nameof(account));
+            SteamId = account.Session?.SteamID > 0 ? account.Session.SteamID.ToString() : "-";
+            AccountName = string.IsNullOrWhiteSpace(account.AccountName)
+                ? Localizer.Choose("Unnamed account", "Аккаунт без имени")
+                : account.AccountName.Trim();
+        }
+
+        public bool Matches(string query)
+        {
+            string value = query?.Trim() ?? string.Empty;
+            return value.Length == 0 ||
+                AccountName.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                SteamId.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        public override string ToString() => $"{AccountName}  ·  {SteamId}";
+    }
+
     internal sealed class DeviceInvitationForm : Form
     {
         private readonly DesktopRegistrySettings settings;
         private readonly CheckedListBox accounts = new CheckedListBox();
+        private readonly TextBox accountSearch = new TextBox();
         private readonly ComboBox role = new ComboBox();
         private readonly PictureBox qr = new PictureBox();
         private readonly Label hint = new Label();
+        private readonly List<DeviceInvitationAccountChoice> availableAccounts = new List<DeviceInvitationAccountChoice>();
+        private readonly HashSet<SteamGuardAccount> selectedAccounts = new HashSet<SteamGuardAccount>();
 
         public DeviceInvitationForm(DesktopRegistrySettings settings)
         {
@@ -571,6 +600,7 @@ namespace Steam_Desktop_Authenticator
             role.SelectedIndexChanged += (_, __) =>
             {
                 accounts.Enabled = role.SelectedIndex != 3;
+                accountSearch.Enabled = role.SelectedIndex != 3;
                 hint.Text = role.SelectedIndex switch
                 {
                     1 => Localizer.Choose(
@@ -582,15 +612,35 @@ namespace Steam_Desktop_Authenticator
                     _ => Localizer.Choose("Choose accounts shared with this device.", "Выберите аккаунты, доступные этому устройству.")
                 };
             };
-            accounts.SetBounds(24, 132, 342, 294);
+            accountSearch.SetBounds(24, 132, 342, 28);
+            accountSearch.PlaceholderText = Localizer.Choose("Search by account name or SteamID", "Поиск по имени аккаунта или SteamID");
+            accountSearch.BackColor = Branding.CardBackground;
+            accountSearch.ForeColor = Branding.HeadingText;
+            accountSearch.BorderStyle = BorderStyle.FixedSingle;
+            accountSearch.TextChanged += (_, __) => ApplyAccountFilter();
+            accounts.SetBounds(24, 168, 342, 258);
             accounts.BackColor = Branding.CardBackground;
             accounts.ForeColor = Branding.HeadingText;
+            accounts.CheckOnClick = true;
+            accounts.ItemCheck += (_, args) =>
+            {
+                if (args.Index < 0 || args.Index >= accounts.Items.Count) return;
+                DeviceInvitationAccountChoice choice = accounts.Items[args.Index] as DeviceInvitationAccountChoice;
+                if (choice == null) return;
+                if (args.NewValue == CheckState.Checked) selectedAccounts.Add(choice.Account);
+                else selectedAccounts.Remove(choice.Account);
+            };
             Manifest manifest = Manifest.GetManifest(true);
             string passKey = manifest.Encrypted ? manifest.PromptForPassKey() : null;
             SteamGuardAccount[] available = manifest.Encrypted && passKey == null
                 ? Array.Empty<SteamGuardAccount>()
                 : manifest.GetAllAccounts(passKey) ?? Array.Empty<SteamGuardAccount>();
-            foreach (SteamGuardAccount account in available) accounts.Items.Add(account, true);
+            availableAccounts.AddRange(available
+                .Select(account => new DeviceInvitationAccountChoice(account))
+                .OrderBy(choice => choice.AccountName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(choice => choice.SteamId, StringComparer.Ordinal));
+            foreach (DeviceInvitationAccountChoice choice in availableAccounts) selectedAccounts.Add(choice.Account);
+            ApplyAccountFilter();
             Button create = new Button { Text = Localizer.Choose("Create one-time QR", "Создать одноразовый QR"), Bounds = new Rectangle(24, 444, 342, 36) };
             ModernUi.RoundButton(create, true);
             create.Click += async (_, __) =>
@@ -609,13 +659,30 @@ namespace Steam_Desktop_Authenticator
             qr.SizeMode = PictureBoxSizeMode.Zoom;
             qr.BackColor = Color.White;
             qr.Visible = false;
-            Controls.AddRange(new Control[] { hint, role, accounts, qr, create });
+            Controls.AddRange(new Control[] { hint, role, accountSearch, accounts, qr, create });
             Paint += ModernUi.PaintGlassBackground;
+        }
+
+        private void ApplyAccountFilter()
+        {
+            accounts.BeginUpdate();
+            try
+            {
+                accounts.Items.Clear();
+                foreach (DeviceInvitationAccountChoice choice in availableAccounts.Where(item => item.Matches(accountSearch.Text)))
+                {
+                    accounts.Items.Add(choice, selectedAccounts.Contains(choice.Account));
+                }
+            }
+            finally { accounts.EndUpdate(); }
         }
 
         private async Task CreateAsync(Button button)
         {
-            List<SteamGuardAccount> selected = accounts.CheckedItems.Cast<SteamGuardAccount>().ToList();
+            List<SteamGuardAccount> selected = availableAccounts
+                .Where(choice => selectedAccounts.Contains(choice.Account))
+                .Select(choice => choice.Account)
+                .ToList();
             bool creatingAdmin = role.SelectedIndex == 3;
             if (!creatingAdmin && selected.Count == 0) return;
             button.Enabled = false;
@@ -637,6 +704,7 @@ namespace Steam_Desktop_Authenticator
                         : new[] { "ViewGuardCode", "ApproveSteamQr", "ViewConfirmations", "ApproveConfirmations" },
                     CancellationToken.None);
                 accounts.Visible = false;
+                accountSearch.Visible = false;
                 role.Visible = false;
                 qr.Image = CreateQrBitmap(invitation.QrPayload, 280, 280);
                 qr.Visible = true;

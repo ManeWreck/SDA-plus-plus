@@ -221,6 +221,21 @@ bool orphanedAdminPinRecoverySafe = configuredBeforeReset &&
     (string)registrySettingsType.GetProperty("AdminPinHash")!.GetValue(orphanedPinSettings)! == string.Empty &&
     (int)registrySettingsType.GetProperty("AdminPinIterations")!.GetValue(orphanedPinSettings)! == 0;
 
+Type invitationChoiceType = application.GetType(
+    "Steam_Desktop_Authenticator.DeviceInvitationAccountChoice",
+    throwOnError: true)!;
+SteamGuardAccount invitationAccount = new SteamGuardAccount
+{
+    AccountName = "alpha-account",
+    Session = new SessionData { SteamID = 76561198012345678 }
+};
+object invitationChoice = Activator.CreateInstance(invitationChoiceType, invitationAccount)!;
+MethodInfo invitationChoiceMatches = invitationChoiceType.GetMethod("Matches", BindingFlags.Public | BindingFlags.Instance)!;
+bool invitationAccountDisplaySafe = invitationChoice.ToString() == "alpha-account  ·  76561198012345678" &&
+    (bool)invitationChoiceMatches.Invoke(invitationChoice, new object[] { "ALPHA" })! &&
+    (bool)invitationChoiceMatches.Invoke(invitationChoice, new object[] { "012345678" })! &&
+    !(bool)invitationChoiceMatches.Invoke(invitationChoice, new object[] { "missing" })!;
+
 object first = getInfo.Invoke(null, null)!;
 object second = getInfo.Invoke(null, null)!;
 Type infoType = first.GetType();
@@ -287,8 +302,9 @@ Console.WriteLine($"SteamQrRemotePayloadFixtureMatches={steamQrFixtureMatches}")
 Console.WriteLine($"RemoteAccountPlaceholderSafe={remotePlaceholderSafe}");
 Console.WriteLine($"RemoteFailureClassificationSafe={remoteFailureClassificationSafe}");
 Console.WriteLine($"OrphanedAdminPinRecoverySafe={orphanedAdminPinRecoverySafe}");
+Console.WriteLine($"InvitationAccountDisplaySafe={invitationAccountDisplaySafe}");
 
 return firstId == secondId && valid && !tampered && encryptionBindingValid && !encryptionBindingTampered &&
     actionPayload.SequenceEqual(decryptedAction) && actionContextFixtureMatches && actionContextTamperRejected &&
     authorizationFixtureMatches && guardCodeFixtureMatches && steamQrFixtureMatches && remotePlaceholderSafe &&
-    remoteFailureClassificationSafe && orphanedAdminPinRecoverySafe ? 0 : 1;
+    remoteFailureClassificationSafe && orphanedAdminPinRecoverySafe && invitationAccountDisplaySafe ? 0 : 1;
