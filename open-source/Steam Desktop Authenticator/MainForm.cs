@@ -925,8 +925,11 @@ namespace Steam_Desktop_Authenticator
             new SettingsForm().ShowDialog();
             manifest = Manifest.GetManifest(true);
             Localizer.SetLanguage(manifest.UiLanguage);
+            Branding.ApplyAppearance(manifest);
             loadSettings();
             ApplyLocalization();
+            ApplyTheme();
+            ModernUi.RefreshTheme(this);
             loadAccountsList();
             RegisterGlobalHotkeys();
         }

@@ -22,7 +22,7 @@ namespace Steam_Desktop_Authenticator
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
 
-        public static int HeaderHeight => 38;
+        public static int HeaderHeight => Branding.Density == UiDensity.Compact ? 38 : 42;
 
         public static void AttachWindowChrome(Form form, bool showMinimize, bool showMaximize)
         {
@@ -157,7 +157,7 @@ namespace Steam_Desktop_Authenticator
             button.MouseUp += RoundedButtonMouseUp;
             button.Resize -= ButtonResize;
             button.Resize += ButtonResize;
-            ApplyRoundedRegion(button, 8);
+            ApplyRoundedRegion(button, Branding.ControlRadius);
             button.Invalidate();
         }
 
@@ -236,7 +236,7 @@ namespace Steam_Desktop_Authenticator
                 Rectangle rect = new Rectangle(0, 0, shell.Width - 1, shell.Height - 1);
                 bool focused = textBox.Focused;
 
-                using GraphicsPath path = CreateRoundedPath(rect, 10);
+                using GraphicsPath path = CreateRoundedPath(rect, Branding.ControlRadius + 2);
                 using SolidBrush fillBrush = new SolidBrush(Color.FromArgb(196, Branding.AccentDark));
                 using Pen borderPen = new Pen(focused ? Branding.Accent : Color.FromArgb(150, Branding.Outline));
                 e.Graphics.FillPath(fillBrush, path);
@@ -303,7 +303,7 @@ namespace Steam_Desktop_Authenticator
                 }
 
                 Rectangle rect = new Rectangle(0, 0, shell.Width - 1, shell.Height - 1);
-                using GraphicsPath path = CreateRoundedPath(rect, 12);
+                using GraphicsPath path = CreateRoundedPath(rect, Branding.CardRadius);
                 using SolidBrush fillBrush = new SolidBrush(Color.FromArgb(196, Branding.AccentDark));
                 using Pen borderPen = new Pen(Color.FromArgb(150, Branding.Outline));
                 e.Graphics.FillPath(fillBrush, path);
@@ -325,6 +325,61 @@ namespace Steam_Desktop_Authenticator
             comboBox.ForeColor = Branding.HeadingText;
         }
 
+        public static void RefreshTheme(Control root)
+        {
+            if (root == null || root.IsDisposed)
+            {
+                return;
+            }
+
+            if (root is Form form)
+            {
+                form.BackColor = Branding.WindowBackground;
+                form.ForeColor = Branding.HeadingText;
+            }
+            else if (root is Panel panel && Equals(panel.Tag, "modern-titlebar"))
+            {
+                panel.BackColor = Branding.AccentDark;
+                foreach (Button windowButton in panel.Controls.OfType<Button>())
+                {
+                    windowButton.BackColor = Branding.AccentDark;
+                    windowButton.ForeColor = Branding.MutedText;
+                    windowButton.FlatAppearance.MouseOverBackColor = windowButton.Text == "X"
+                        ? Branding.Danger
+                        : Branding.AccentSoft;
+                }
+            }
+            else if (root is TextBox textBox)
+            {
+                textBox.BackColor = Branding.AccentDark;
+                textBox.ForeColor = Branding.HeadingText;
+            }
+            else if (root is ComboBox comboBox)
+            {
+                RoundComboBox(comboBox);
+            }
+            else if (root is ListBox listBox)
+            {
+                listBox.BackColor = Branding.AccentDark;
+                listBox.ForeColor = Branding.HeadingText;
+            }
+            else if (root is GroupBox groupBox)
+            {
+                groupBox.ForeColor = Branding.HeadingText;
+            }
+            else if (root is Button button && ButtonAccentMap.TryGetValue(button, out bool accent))
+            {
+                RoundButton(button, accent);
+            }
+
+            foreach (Control child in root.Controls)
+            {
+                RefreshTheme(child);
+            }
+
+            root.Invalidate();
+        }
+
         public static void PaintGlassBackground(object sender, PaintEventArgs e)
         {
             if (sender is not Form form)
@@ -338,7 +393,7 @@ namespace Steam_Desktop_Authenticator
                 return;
             }
 
-            using (LinearGradientBrush brush = new LinearGradientBrush(bounds, Color.FromArgb(18, 22, 30), Color.FromArgb(11, 13, 18), 90f))
+            using (LinearGradientBrush brush = new LinearGradientBrush(bounds, Branding.CardBackground, Branding.WindowBackground, 90f))
             {
                 e.Graphics.FillRectangle(brush, bounds);
             }
@@ -408,7 +463,7 @@ namespace Steam_Desktop_Authenticator
             }
 
             Rectangle rect = new Rectangle(1, 8, group.Width - 3, group.Height - 10);
-            using (GraphicsPath path = CreateRoundedPath(rect, 16))
+            using (GraphicsPath path = CreateRoundedPath(rect, Branding.CardRadius))
             using (SolidBrush fillBrush = new SolidBrush(Color.FromArgb(214, Branding.CardBackground)))
             using (Pen borderPen = new Pen(Color.FromArgb(126, Branding.Outline)))
             using (SolidBrush titleBackground = new SolidBrush(group.Parent?.BackColor ?? Branding.WindowBackground))
@@ -431,7 +486,7 @@ namespace Steam_Desktop_Authenticator
         {
             if (sender is Button button)
             {
-                ApplyRoundedRegion(button, 8);
+                ApplyRoundedRegion(button, Branding.ControlRadius);
                 button.Invalidate();
             }
         }
@@ -489,11 +544,13 @@ namespace Steam_Desktop_Authenticator
 
             if (pressed)
             {
-                fill = accent ? Color.FromArgb(86, 126, 238) : Color.FromArgb(92, 100, 118);
+                fill = accent
+                    ? Blend(Branding.Accent, Branding.WindowBackground, 0.18f)
+                    : Blend(Branding.CardBackground, Branding.Accent, 0.22f);
             }
             else if (hovered)
             {
-                fill = accent ? Color.FromArgb(122, 160, 255) : Branding.AccentSoft;
+                fill = accent ? Blend(Branding.Accent, Color.White, 0.12f) : Branding.AccentSoft;
             }
 
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -504,7 +561,7 @@ namespace Steam_Desktop_Authenticator
             }
 
             Rectangle rect = new Rectangle(0, 0, button.Width - 1, button.Height - 1);
-            using (GraphicsPath path = CreateRoundedPath(rect, 8))
+            using (GraphicsPath path = CreateRoundedPath(rect, Branding.ControlRadius))
             using (SolidBrush fillBrush = new SolidBrush(fill))
             using (Pen borderPen = new Pen(border))
             {
@@ -546,6 +603,15 @@ namespace Steam_Desktop_Authenticator
             path.AddArc(rect.X, rect.Bottom - diameter, diameter, diameter, 90, 90);
             path.CloseFigure();
             return path;
+        }
+
+        private static Color Blend(Color first, Color second, float amount)
+        {
+            float inverse = 1f - amount;
+            return Color.FromArgb(
+                (int)((first.R * inverse) + (second.R * amount)),
+                (int)((first.G * inverse) + (second.G * amount)),
+                (int)((first.B * inverse) + (second.B * amount)));
         }
     }
 }

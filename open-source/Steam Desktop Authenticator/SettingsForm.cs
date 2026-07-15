@@ -37,6 +37,7 @@ namespace Steam_Desktop_Authenticator
         private readonly TextBox txtHotkeyAutoLoginAll = new TextBox();
         private readonly Label lblHotkeyConfirmations = new Label();
         private readonly TextBox txtHotkeyConfirmations = new TextBox();
+        private readonly Button btnAppearance = new Button();
         private Manifest manifest;
         private bool fullyLoaded = false;
         private bool compactLayoutApplied = false;
@@ -58,6 +59,7 @@ namespace Steam_Desktop_Authenticator
             CreateActionHotkeyControls();
             CreateCloudProviderControls();
             CreateCredentialsControls();
+            CreateAppearanceControl();
             Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
             DoubleBuffered = true;
             ModernUi.AttachWindowChrome(this, false, false);
@@ -160,6 +162,12 @@ namespace Steam_Desktop_Authenticator
             groupCredentials.Controls.Add(txtCredentialsCloudPath);
         }
 
+        private void CreateAppearanceControl()
+        {
+            btnAppearance.Click += btnAppearance_Click;
+            Controls.Add(btnAppearance);
+        }
+
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
@@ -254,6 +262,8 @@ namespace Steam_Desktop_Authenticator
             labelLanguage.Location = new Point(12, 48);
             cmbLanguage.Location = new Point(70, 44);
             cmbLanguage.Size = new Size(148, 24);
+            btnAppearance.Location = new Point(228, 42);
+            btnAppearance.Size = new Size(132, 28);
 
             chkPeriodicChecking.Location = new Point(12, 82);
             chkPeriodicChecking.MaximumSize = new Size(338, 0);
@@ -447,6 +457,7 @@ namespace Steam_Desktop_Authenticator
             label7.Text = Localizer.Choose("QR capture source:", "Источник захвата QR:");
             lblCursorScanSize.Text = Localizer.Choose("Cursor area size (pixels):", "Размер области у курсора (пикс.):");
             btnResetHotkeys.Text = Localizer.Choose("Reset defaults", "Сбросить");
+            btnAppearance.Text = Localizer.Choose("Appearance...", "Внешний вид...");
             groupCloud.Tag = Localizer.Choose("Cloud Sync", "Облачная синхронизация");
             lblCloudProvider.Text = Localizer.Choose("Provider:", "Провайдер:");
             label11.Text = Localizer.Choose("Remote folder path:", "Путь к папке в облаке:");
@@ -748,6 +759,16 @@ namespace Steam_Desktop_Authenticator
             Localizer.SetLanguage(manifest.UiLanguage);
             manifest.Save();
             Close();
+        }
+
+        private void btnAppearance_Click(object sender, EventArgs e)
+        {
+            using AppearanceSettingsForm appearanceForm = new AppearanceSettingsForm(manifest);
+            appearanceForm.ShowDialog(this);
+            manifest = Manifest.GetManifest(true);
+            Branding.ApplyAppearance(manifest);
+            ApplyTheme();
+            ModernUi.RefreshTheme(this);
         }
 
         private void chkPeriodicChecking_CheckedChanged(object sender, EventArgs e)

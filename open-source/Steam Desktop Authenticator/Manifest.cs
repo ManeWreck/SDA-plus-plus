@@ -25,6 +25,19 @@ namespace Steam_Desktop_Authenticator
         Personal = 1
     }
 
+    public enum UiThemePreset
+    {
+        Graphite = 0,
+        Obsidian = 1,
+        Slate = 2
+    }
+
+    public enum UiDensity
+    {
+        Compact = 0,
+        Comfortable = 1
+    }
+
     public class Manifest
     {
         [JsonProperty("encrypted")]
@@ -156,6 +169,15 @@ namespace Steam_Desktop_Authenticator
         [JsonProperty("ui_language")]
         public AppLanguage UiLanguage { get; set; } = AppLanguage.English;
 
+        [JsonProperty("ui_theme_preset")]
+        public UiThemePreset UiThemePreset { get; set; } = UiThemePreset.Graphite;
+
+        [JsonProperty("ui_accent_color")]
+        public string UiAccentColor { get; set; } = "#6C92FF";
+
+        [JsonProperty("ui_density")]
+        public UiDensity UiDensity { get; set; } = UiDensity.Compact;
+
         [JsonProperty("pairing_relay_mode")]
         public PairingRelayMode PairingRelayMode { get; set; } = PairingRelayMode.Managed;
 
@@ -266,6 +288,9 @@ namespace Steam_Desktop_Authenticator
             newManifest.CredentialsCloudProvider = CloudProvider.WebDav;
             newManifest.CredentialsCloudRemotePath = "SDAppCredentials";
             newManifest.UiLanguage = AppLanguage.English;
+            newManifest.UiThemePreset = UiThemePreset.Graphite;
+            newManifest.UiAccentColor = "#6C92FF";
+            newManifest.UiDensity = UiDensity.Compact;
             newManifest.Entries = new List<ManifestEntry>();
             newManifest.FirstRun = true;
 
@@ -674,6 +699,18 @@ namespace Steam_Desktop_Authenticator
             {
                 UiLanguage = AppLanguage.English;
             }
+
+            if (!Enum.IsDefined(typeof(UiThemePreset), UiThemePreset))
+            {
+                UiThemePreset = UiThemePreset.Graphite;
+            }
+
+            if (!Enum.IsDefined(typeof(UiDensity), UiDensity))
+            {
+                UiDensity = UiDensity.Compact;
+            }
+
+            UiAccentColor = Branding.NormalizeAccent(UiAccentColor);
 
             if (!Enum.IsDefined(typeof(PairingRelayMode), PairingRelayMode))
             {
