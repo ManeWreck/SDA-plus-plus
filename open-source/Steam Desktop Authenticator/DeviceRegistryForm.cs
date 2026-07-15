@@ -26,12 +26,13 @@ namespace Steam_Desktop_Authenticator
         private readonly Button revoke = new Button();
         private readonly Button wipe = new Button();
         private readonly Button lockdown = new Button();
+        private readonly Button activity = new Button();
         private DesktopRegistrySettings settings;
 
         public DeviceRegistryForm()
         {
             Text = Localizer.Choose("Trusted devices", "Доверенные устройства");
-            ClientSize = new Size(620, 490);
+            ClientSize = new Size(620, 540);
             StartPosition = FormStartPosition.CenterParent;
             BackColor = Branding.WindowBackground;
             ForeColor = Branding.HeadingText;
@@ -55,6 +56,7 @@ namespace Steam_Desktop_Authenticator
             revoke = MakeButton(Localizer.Choose("Revoke", "Отозвать"), 260, 410, 90, false);
             wipe = MakeButton(Localizer.Choose("Wipe", "Очистить"), 360, 410, 90, false);
             lockdown = MakeButton(Localizer.Choose("Lockdown", "Аварийно"), 460, 410, 140, false);
+            activity = MakeButton(Localizer.Choose("Security activity", "События безопасности"), 20, 456, 180, false);
             setup.Click += async (_, __) => await SetupAsync();
             join.Click += async (_, __) => await JoinAsync();
             add.Click += (_, __) =>
@@ -65,7 +67,8 @@ namespace Steam_Desktop_Authenticator
             revoke.Click += async (_, __) => await RevokeAsync();
             wipe.Click += async (_, __) => await WipeAsync();
             lockdown.Click += async (_, __) => await LockdownAsync();
-            Controls.AddRange(new Control[] { status, devices, setup, join, add, refresh, revoke, wipe, lockdown });
+            activity.Click += (_, __) => new DeviceAuditForm(settings).ShowDialog(this);
+            Controls.AddRange(new Control[] { status, devices, setup, join, add, refresh, revoke, wipe, lockdown, activity });
             Paint += ModernUi.PaintGlassBackground;
             Shown += async (_, __) => await LoadAsync();
         }
@@ -83,7 +86,7 @@ namespace Steam_Desktop_Authenticator
             bool configured = !string.IsNullOrWhiteSpace(settings.VaultId);
             setup.Visible = !configured;
             join.Visible = !configured;
-            add.Visible = refresh.Visible = revoke.Visible = wipe.Visible = lockdown.Visible = configured && settings.Role == "Admin";
+            add.Visible = refresh.Visible = revoke.Visible = wipe.Visible = lockdown.Visible = activity.Visible = configured && settings.Role == "Admin";
             devices.Visible = configured && settings.Role == "Admin";
             status.Text = configured
                 ? settings.Role == "Admin"
@@ -191,7 +194,71 @@ namespace Steam_Desktop_Authenticator
             MessageBox.Show(Localizer.Choose("Wipe command queued.", "Команда очистки поставлена в очередь."), Text);
         }
 
-        private void SetBusy(bool busy) => setup.Enabled = join.Enabled = add.Enabled = refresh.Enabled = revoke.Enabled = wipe.Enabled = lockdown.Enabled = !busy;
+        private void SetBusy(bool busy) => setup.Enabled = join.Enabled = add.Enabled = refresh.Enabled = revoke.Enabled = wipe.Enabled = lockdown.Enabled = activity.Enabled = !busy;
+    }
+
+    internal sealed class DeviceAuditForm : Form
+    {
+        private readonly DesktopRegistrySettings settings;
+        private readonly ListView events = new ListView();
+
+        public DeviceAuditForm(DesktopRegistrySettings settings)
+        {
+            this.settings = settings;
+            Text = Localizer.Choose("Security activity", "События безопасности");
+            ClientSize = new Size(680, 460);
+            StartPosition = FormStartPosition.CenterParent;
+            BackColor = Branding.WindowBackground;
+            ForeColor = Branding.HeadingText;
+            Icon = Branding.LoadAppIcon();
+            ModernUi.AttachWindowChrome(this, false, false);
+            events.SetBounds(20, 48, 640, 390);
+            events.View = View.Details;
+            events.FullRowSelect = true;
+            events.BackColor = Branding.CardBackground;
+            events.ForeColor = Branding.HeadingText;
+            events.Columns.Add(Localizer.Choose("Time", "Время"), 145);
+            events.Columns.Add(Localizer.Choose("Action", "Действие"), 190);
+            events.Columns.Add(Localizer.Choose("Actor", "Инициатор"), 105);
+            events.Columns.Add(Localizer.Choose("Target", "Цель"), 105);
+            events.Columns.Add(Localizer.Choose("Country", "Страна"), 70);
+            Controls.Add(events);
+            Paint += ModernUi.PaintGlassBackground;
+            Shown += async (_, __) => await LoadEventsAsync();
+        }
+
+        private async Task LoadEventsAsync()
+        {
+            try
+            {
+                IReadOnlyList<DesktopRegistryAuditEvent> snapshot = await new DesktopDeviceRegistryClient()
+                    .ListAuditAsync(settings, CancellationToken.None);
+                events.Items.Clear();
+                foreach (DesktopRegistryAuditEvent audit in snapshot.OrderByDescending(value => value.OccurredAt).Take(200))
+                {
+                    ListViewItem item = new ListViewItem(DateTimeOffset.FromUnixTimeMilliseconds(audit.OccurredAt).LocalDateTime.ToString("g"));
+                    item.SubItems.Add(SplitAction(audit.Action));
+                    item.SubItems.Add(ShortId(audit.ActorDeviceId));
+                    item.SubItems.Add(ShortId(audit.TargetDeviceId));
+                    item.SubItems.Add(audit.Country ?? string.Empty);
+                    events.Items.Add(item);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private static string ShortId(string value) => string.IsNullOrWhiteSpace(value)
+            ? "-"
+            : value.Substring(0, Math.Min(8, value.Length));
+
+        private static string SplitAction(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "-";
+            return System.Text.RegularExpressions.Regex.Replace(value, "([a-z])([A-Z])", "$1 $2");
+        }
     }
 
     internal sealed class DeviceInvitationForm : Form

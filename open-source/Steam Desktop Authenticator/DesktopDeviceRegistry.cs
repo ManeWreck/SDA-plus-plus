@@ -54,6 +54,15 @@ namespace Steam_Desktop_Authenticator
         [JsonProperty("expiresAt")] public long ExpiresAt { get; set; }
     }
 
+    internal sealed class DesktopRegistryAuditEvent
+    {
+        [JsonProperty("action")] public string Action { get; set; }
+        [JsonProperty("actorDeviceId")] public string ActorDeviceId { get; set; }
+        [JsonProperty("targetDeviceId")] public string TargetDeviceId { get; set; }
+        [JsonProperty("occurredAt")] public long OccurredAt { get; set; }
+        [JsonProperty("country")] public string Country { get; set; }
+    }
+
     internal static class DesktopRegistrySettingsStore
     {
         private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("SDA++ desktop device registry v1");
@@ -167,6 +176,12 @@ namespace Steam_Desktop_Authenticator
         {
             JObject response = await SendAsync(settings.RelayUrl, $"/v1/trust/{settings.VaultId}/devices", HttpMethod.Get, null, false, null, token);
             return response["devices"]?.ToObject<List<DesktopRegistryDevice>>() ?? new List<DesktopRegistryDevice>();
+        }
+
+        public async Task<IReadOnlyList<DesktopRegistryAuditEvent>> ListAuditAsync(DesktopRegistrySettings settings, CancellationToken token)
+        {
+            JObject response = await SendAsync(settings.RelayUrl, $"/v1/trust/{settings.VaultId}/audit", HttpMethod.Get, null, false, null, token);
+            return response["events"]?.ToObject<List<DesktopRegistryAuditEvent>>() ?? new List<DesktopRegistryAuditEvent>();
         }
 
         public async Task HeartbeatAsync(DesktopRegistrySettings settings, CancellationToken token)
