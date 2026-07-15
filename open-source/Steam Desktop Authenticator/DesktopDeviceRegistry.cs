@@ -24,6 +24,11 @@ namespace Steam_Desktop_Authenticator
         public long? ExpiresAt { get; set; }
         public int? OfflineWipeAfterHours { get; set; }
         public long? LastSuccessfulHeartbeatAt { get; set; }
+        public string AdminPinSalt { get; set; } = string.Empty;
+        public string AdminPinHash { get; set; } = string.Empty;
+        public int AdminPinIterations { get; set; }
+        public int AdminPinFailedAttempts { get; set; }
+        public long? AdminPinLockedUntil { get; set; }
     }
 
     internal sealed class DesktopRegistryDevice
@@ -142,7 +147,18 @@ namespace Steam_Desktop_Authenticator
                 ["keyProtection"] = identity.Protection
             };
             await SendAsync(endpoint, $"/v1/trust/{vaultId}/bootstrap", HttpMethod.Put, body, true, null, token);
-            DesktopRegistrySettings settings = new DesktopRegistrySettings { VaultId = vaultId, RelayUrl = endpoint, Role = "Admin" };
+            DesktopRegistrySettings previous = DesktopRegistrySettingsStore.Load();
+            DesktopRegistrySettings settings = new DesktopRegistrySettings
+            {
+                VaultId = vaultId,
+                RelayUrl = endpoint,
+                Role = "Admin",
+                AdminPinSalt = previous.AdminPinSalt,
+                AdminPinHash = previous.AdminPinHash,
+                AdminPinIterations = previous.AdminPinIterations,
+                AdminPinFailedAttempts = previous.AdminPinFailedAttempts,
+                AdminPinLockedUntil = previous.AdminPinLockedUntil
+            };
             DesktopRegistrySettingsStore.Save(settings);
             return settings;
         }

@@ -57,7 +57,10 @@ namespace Steam_Desktop_Authenticator
             lockdown = MakeButton(Localizer.Choose("Lockdown", "Аварийно"), 460, 410, 140, false);
             setup.Click += async (_, __) => await SetupAsync();
             join.Click += async (_, __) => await JoinAsync();
-            add.Click += (_, __) => new DeviceInvitationForm(settings).ShowDialog(this);
+            add.Click += (_, __) =>
+            {
+                if (DesktopAdminStepUp.Require(this, settings)) new DeviceInvitationForm(settings).ShowDialog(this);
+            };
             refresh.Click += async (_, __) => await RefreshAsync();
             revoke.Click += async (_, __) => await RevokeAsync();
             wipe.Click += async (_, __) => await WipeAsync();
@@ -95,6 +98,8 @@ namespace Steam_Desktop_Authenticator
         {
             try
             {
+                settings = DesktopRegistrySettingsStore.Load();
+                if (!DesktopAdminStepUp.Require(this, settings)) return;
                 SetBusy(true);
                 Manifest manifest = Manifest.GetManifest();
                 string endpoint = manifest.PairingRelayMode == PairingRelayMode.Personal ? manifest.PairingRelayUrl : PairingRelayProfile.ManagedEndpoint;
@@ -162,6 +167,7 @@ namespace Steam_Desktop_Authenticator
         private async Task RevokeAsync()
         {
             if (devices.SelectedItems.Count == 0 || devices.SelectedItems[0].Tag is not DesktopRegistryDevice target) return;
+            if (!DesktopAdminStepUp.Require(this, settings)) return;
             if (MessageBox.Show(Localizer.Choose("Revoke this device?", "Отозвать это устройство?"), Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
             await client.RevokeAsync(settings, target.DeviceId, CancellationToken.None);
             await RefreshAsync();
@@ -169,6 +175,7 @@ namespace Steam_Desktop_Authenticator
 
         private async Task LockdownAsync()
         {
+            if (!DesktopAdminStepUp.Require(this, settings)) return;
             if (MessageBox.Show(Localizer.Choose("Revoke every non-Admin device now?", "Отозвать все не-Admin устройства сейчас?"), Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
             int count = await client.LockdownAsync(settings, CancellationToken.None);
             MessageBox.Show(Localizer.Choose($"Revoked devices: {count}", $"Отозвано устройств: {count}"), Text);
@@ -178,6 +185,7 @@ namespace Steam_Desktop_Authenticator
         private async Task WipeAsync()
         {
             if (devices.SelectedItems.Count == 0 || devices.SelectedItems[0].Tag is not DesktopRegistryDevice target) return;
+            if (!DesktopAdminStepUp.Require(this, settings)) return;
             if (MessageBox.Show(Localizer.Choose("Queue local data removal on this device?", "Поставить в очередь удаление локальных данных на этом устройстве?"), Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
             await client.IssueCommandAsync(settings, target.DeviceId, "WipeLocalData", CancellationToken.None);
             MessageBox.Show(Localizer.Choose("Wipe command queued.", "Команда очистки поставлена в очередь."), Text);
