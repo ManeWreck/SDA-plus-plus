@@ -24,6 +24,7 @@ namespace Steam_Desktop_Authenticator
         public long? ExpiresAt { get; set; }
         public int? OfflineWipeAfterHours { get; set; }
         public long? LastSuccessfulHeartbeatAt { get; set; }
+        public string LastAuditEventId { get; set; } = string.Empty;
         public string AdminPinSalt { get; set; } = string.Empty;
         public string AdminPinHash { get; set; } = string.Empty;
         public int AdminPinIterations { get; set; }
@@ -56,6 +57,7 @@ namespace Steam_Desktop_Authenticator
 
     internal sealed class DesktopRegistryAuditEvent
     {
+        [JsonProperty("eventId")] public string EventId { get; set; }
         [JsonProperty("action")] public string Action { get; set; }
         [JsonProperty("actorDeviceId")] public string ActorDeviceId { get; set; }
         [JsonProperty("targetDeviceId")] public string TargetDeviceId { get; set; }

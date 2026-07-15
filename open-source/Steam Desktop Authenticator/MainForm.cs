@@ -1645,7 +1645,24 @@ namespace Steam_Desktop_Authenticator
                     return;
                 }
 
-                if (registry.Role == "Admin") return;
+                if (registry.Role == "Admin")
+                {
+                    IReadOnlyList<DesktopRegistryAuditEvent> events = await client.ListAuditAsync(registry, CancellationToken.None);
+                    DesktopRegistryAuditEvent newest = events.FirstOrDefault();
+                    if (newest != null)
+                    {
+                        List<DesktopRegistryAuditEvent> newEvents = string.IsNullOrWhiteSpace(registry.LastAuditEventId)
+                            ? new List<DesktopRegistryAuditEvent>()
+                            : events.TakeWhile(value => value.EventId != registry.LastAuditEventId).ToList();
+                        registry.LastAuditEventId = newest.EventId;
+                        DesktopRegistrySettingsStore.Save(registry);
+                        List<DesktopRegistryAuditEvent> significant = newEvents
+                            .Where(value => value.Action != "Heartbeat")
+                            .ToList();
+                        if (significant.Count > 0) ShowSecurityActivityNotification(significant);
+                    }
+                    return;
+                }
                 IReadOnlyList<DesktopRegistryCommand> commands = await client.PendingCommandsAsync(registry, CancellationToken.None);
                 foreach (DesktopRegistryCommand command in commands.OrderBy(value => value.ExpiresAt))
                 {
@@ -1701,6 +1718,34 @@ namespace Steam_Desktop_Authenticator
             ShowOverlay(
                 Localizer.Choose("Trusted device", "Доверенное устройство"),
                 Localizer.Choose("Granted local account data was removed.", "Выданные локальные данные аккаунтов удалены."));
+        }
+
+        private void ShowSecurityActivityNotification(IReadOnlyList<DesktopRegistryAuditEvent> events)
+        {
+            string latest = SecurityActivityLabel(events[0].Action);
+            trayIcon.BalloonTipTitle = Localizer.Choose("SDA++ security activity", "Событие безопасности SDA++");
+            trayIcon.BalloonTipText = events.Count == 1 ? latest : $"{latest} (+{events.Count - 1})";
+            trayIcon.BalloonTipIcon = ToolTipIcon.Warning;
+            trayIcon.ShowBalloonTip(6000);
+        }
+
+        private static string SecurityActivityLabel(string action)
+        {
+            if (!Localizer.IsRussian)
+                return Regex.Replace(action ?? string.Empty, "([a-z])([A-Z])", "$1 $2");
+
+            return action switch
+            {
+                "DeviceEnrolled" => "Добавлено новое устройство",
+                "DeviceRevoked" => "Устройство отозвано",
+                "InvitationCreated" => "Создано приглашение устройства",
+                "EmergencyLockdown" => "Выполнена аварийная блокировка",
+                "CommandLockIssued" => "Отправлена команда блокировки",
+                "CommandWipeLocalDataIssued" => "Отправлена команда очистки",
+                "CommandTerminateSteamSessionsIssued" => "Отправлена команда завершения Steam-сессий",
+                "CommandCompleted" => "Удалённая команда выполнена",
+                _ => Regex.Replace(action ?? string.Empty, "([a-z])([A-Z])", "$1 $2"),
+            };
         }
 
         /// <summary>
