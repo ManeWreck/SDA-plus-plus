@@ -349,6 +349,10 @@ namespace Steam_Desktop_Authenticator
                         : Branding.AccentSoft;
                 }
             }
+            else if (root is Panel workspaceSurface && Equals(workspaceSurface.Tag, "workspace-surface"))
+            {
+                workspaceSurface.BackColor = Branding.WindowBackground;
+            }
             else if (root is TextBox textBox)
             {
                 textBox.BackColor = Branding.AccentDark;
@@ -456,7 +460,8 @@ namespace Steam_Desktop_Authenticator
             }
 
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            e.Graphics.Clear(group.Parent?.BackColor ?? Branding.WindowBackground);
+            Color surface = ResolveSurfaceColor(group.Parent);
+            e.Graphics.Clear(surface);
             if (group.Width <= 3 || group.Height <= 10)
             {
                 return;
@@ -466,7 +471,7 @@ namespace Steam_Desktop_Authenticator
             using (GraphicsPath path = CreateRoundedPath(rect, Branding.CardRadius))
             using (SolidBrush fillBrush = new SolidBrush(Color.FromArgb(214, Branding.CardBackground)))
             using (Pen borderPen = new Pen(Color.FromArgb(126, Branding.Outline)))
-            using (SolidBrush titleBackground = new SolidBrush(group.Parent?.BackColor ?? Branding.WindowBackground))
+            using (SolidBrush titleBackground = new SolidBrush(surface))
             {
                 e.Graphics.FillPath(fillBrush, path);
                 e.Graphics.DrawPath(borderPen, path);
@@ -612,6 +617,22 @@ namespace Steam_Desktop_Authenticator
                 (int)((first.R * inverse) + (second.R * amount)),
                 (int)((first.G * inverse) + (second.G * amount)),
                 (int)((first.B * inverse) + (second.B * amount)));
+        }
+
+        private static Color ResolveSurfaceColor(Control control)
+        {
+            Control current = control;
+            while (current != null)
+            {
+                if (current.BackColor.A == byte.MaxValue)
+                {
+                    return current.BackColor;
+                }
+
+                current = current.Parent;
+            }
+
+            return Branding.WindowBackground;
         }
     }
 }

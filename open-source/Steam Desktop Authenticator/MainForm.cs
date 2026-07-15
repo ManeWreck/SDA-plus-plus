@@ -41,6 +41,10 @@ namespace Steam_Desktop_Authenticator
         private readonly Panel panelTimeoutTrack = new Panel();
         private readonly Panel panelTimeoutFill = new Panel();
         private readonly Panel panelTopNav = new Panel();
+        private readonly Panel panelWorkspace = new Panel();
+        private readonly Panel panelAccountsColumn = new Panel();
+        private readonly Panel panelDetailsColumn = new Panel();
+        private readonly Label lblAccountsSection = new Label();
         private readonly Button btnNavFile = new Button();
         private readonly Button btnNavAccount = new Button();
         private readonly Button btnAccountMonitoring = new Button();
@@ -134,56 +138,77 @@ namespace Steam_Desktop_Authenticator
             int topOffset = ModernUi.HeaderHeight + 8;
 
             Text = $"{Branding.FullAppName} v{Application.ProductVersion}";
-            ClientSize = new Size(392, 668);
-            MinimumSize = new Size(408, 520);
+            ClientSize = new Size(880, 680);
+            MinimumSize = new Size(760, 600);
 
             menuStrip.Visible = false;
             panelTopNav.Location = new Point(12, topOffset + 6);
-            panelTopNav.Size = new Size(366, 28);
+            panelTopNav.Size = new Size(ClientSize.Width - 24, 28);
+            panelTopNav.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             panelTopNav.BackColor = Color.Transparent;
             Controls.Add(panelTopNav);
             panelTopNav.BringToFront();
 
             ConfigureNavButton(btnNavFile, 0, 112);
-            ConfigureNavButton(btnNavAccount, 122, 146);
-            ConfigureNavButton(btnAccountMonitoring, 278, 88);
+            ConfigureNavButton(btnNavAccount, 120, 164);
+            ConfigureNavButton(btnAccountMonitoring, 292, 104);
             panelTopNav.Controls.Add(btnNavFile);
             panelTopNav.Controls.Add(btnNavAccount);
             panelTopNav.Controls.Add(btnAccountMonitoring);
 
             panelButtons.Location = new Point(12, topOffset + 40);
-            panelButtons.Size = new Size(366, 34);
+            panelButtons.Size = new Size(520, 34);
             btnAccountMonitoring.Click += menuAccountMonitoring_Click;
             chkEnableQrHotkeys.Location = new Point(16, topOffset + 84);
             chkEnableQrHotkeys.Text = "";
             chkEnableQrHotkeys.ForeColor = Branding.MutedText;
+            lblStatus.Location = new Point(ClientSize.Width - 280, topOffset + 48);
+            lblStatus.Size = new Size(264, 18);
+            lblStatus.Anchor = AnchorStyles.Top | AnchorStyles.Right;
 
-            groupBox1.Location = new Point(12, topOffset + 112);
-            groupBox1.Size = new Size(366, 126);
+            panelWorkspace.Location = new Point(12, topOffset + 112);
+            panelWorkspace.Size = new Size(ClientSize.Width - 24, ClientSize.Height - topOffset - 154);
+            panelWorkspace.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            panelWorkspace.BackColor = Color.Transparent;
+            panelWorkspace.Controls.Add(panelAccountsColumn);
+            panelWorkspace.Controls.Add(panelDetailsColumn);
+            Controls.Add(panelWorkspace);
+
+            panelAccountsColumn.BackColor = Color.Transparent;
+            panelDetailsColumn.BackColor = Branding.WindowBackground;
+            panelDetailsColumn.Tag = "workspace-surface";
+
+            lblAccountsSection.Font = new Font("Segoe UI Semibold", 11F, FontStyle.Bold, GraphicsUnit.Point);
+            lblAccountsSection.ForeColor = Branding.HeadingText;
+            lblAccountsSection.Location = new Point(4, 0);
+            lblAccountsSection.Size = new Size(240, 24);
+            panelAccountsColumn.Controls.Add(lblAccountsSection);
+
+            panelAccountsColumn.Controls.Add(listAccounts);
+            panelAccountsColumn.Controls.Add(label1);
+            panelAccountsColumn.Controls.Add(txtAccSearch);
+            panelDetailsColumn.Controls.Add(groupBox1);
+            panelDetailsColumn.Controls.Add(groupAccount);
+
             // Set the card padding before positioning its children. Changing it later
             // makes WinForms offset the anchored controls and clips the timeout bar.
             groupBox1.Padding = new Padding(14, 28, 14, 14);
-            txtLoginToken.Location = new Point(14, 34);
-            txtLoginToken.Size = new Size(286, 34);
-            btnCopy.Location = new Point(308, 34);
-            btnCopy.Size = new Size(44, 34);
-            pbTimeout.Location = new Point(14, 82);
-            pbTimeout.Size = new Size(338, 16);
-            groupAccount.Location = new Point(12, topOffset + 240);
-            groupAccount.Size = new Size(366, 142);
-            listAccounts.Location = new Point(12, topOffset + 408);
-            listAccounts.Size = new Size(366, 154);
-            txtAccSearch.Location = new Point(58, topOffset + 566);
-            txtAccSearch.Size = new Size(320, 22);
-            label1.Location = new Point(12, topOffset + 570);
-            labelUpdate.Location = new Point(12, topOffset + 604);
+            groupAccount.Text = "";
+            listAccounts.DrawMode = DrawMode.OwnerDrawFixed;
+            listAccounts.ItemHeight = 24;
+            listAccounts.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            txtAccSearch.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            label1.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+
+            labelUpdate.Location = new Point(12, ClientSize.Height - 26);
             labelUpdate.Size = new Size(52, 16);
-            labelVersion.Location = new Point(252, topOffset + 622);
+            labelUpdate.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            labelVersion.Location = new Point(ClientSize.Width - 142, ClientSize.Height - 26);
             labelVersion.Size = new Size(126, 16);
-            lblStatus.Location = new Point(226, topOffset + 85);
-            lblStatus.Size = new Size(152, 18);
-            lblFooterKofi.Location = new Point(70, topOffset + 604);
+            labelVersion.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            lblFooterKofi.Location = new Point(70, ClientSize.Height - 26);
             lblFooterKofi.Size = new Size(44, 16);
+            lblFooterKofi.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblFooterKofi.BackColor = Color.Transparent;
             labelUpdate.TextAlign = ContentAlignment.MiddleLeft;
             lblFooterKofi.TextAlign = ContentAlignment.MiddleLeft;
@@ -194,16 +219,12 @@ namespace Steam_Desktop_Authenticator
                 Controls.Add(lblFooterKofi);
             }
 
-            groupAccount.Text = "";
-
             lblAccountName.Font = new Font("Segoe UI Semibold", 11.5F, FontStyle.Bold, GraphicsUnit.Point);
             lblAccountName.ForeColor = Branding.HeadingText;
             lblAccountName.Location = new Point(14, 22);
-            lblAccountName.Size = new Size(220, 22);
             lblAccountName.Text = "";
 
             btnFavoriteAccount.Size = new Size(104, 26);
-            btnFavoriteAccount.Location = new Point(246, 20);
             btnFavoriteAccount.Text = "";
             btnFavoriteAccount.Click += btnFavoriteAccount_Click;
 
@@ -215,29 +236,20 @@ namespace Steam_Desktop_Authenticator
             lblSessionDetails.Font = new Font("Segoe UI", 8.75F, FontStyle.Regular, GraphicsUnit.Point);
             lblSessionDetails.ForeColor = Branding.MutedText;
             lblSessionDetails.Location = new Point(132, 50);
-            lblSessionDetails.Size = new Size(222, 38);
 
             lblAccountHint.Font = new Font("Segoe UI", 8.5F, FontStyle.Regular, GraphicsUnit.Point);
             lblAccountHint.ForeColor = Branding.MutedText;
             lblAccountHint.Location = new Point(14, 92);
-            lblAccountHint.Size = new Size(340, 16);
             lblAccountHint.Visible = false;
 
-            panelAccountActions.Location = new Point(14, 98);
-            panelAccountActions.Size = new Size(334, 28);
             panelAccountActions.BackColor = Color.Transparent;
 
             btnTradeConfirmations.Location = new Point(0, 0);
-            btnTradeConfirmations.Size = new Size(102, 28);
             btnTradeConfirmations.Text = "";
 
-            btnQuickLoginAgain.Size = new Size(102, 28);
-            btnQuickLoginAgain.Location = new Point(116, 0);
             btnQuickLoginAgain.Text = "";
             btnQuickLoginAgain.Click += btnQuickLoginAgain_Click;
 
-            btnQuickTerminate.Size = new Size(102, 28);
-            btnQuickTerminate.Location = new Point(232, 0);
             btnQuickTerminate.Text = "";
             btnQuickTerminate.Click += btnQuickTerminate_Click;
 
@@ -260,9 +272,10 @@ namespace Steam_Desktop_Authenticator
             panelAccountActions.Controls.Add(btnQuickLoginAgain);
             panelAccountActions.Controls.Add(btnQuickTerminate);
 
-            listAccounts.DrawMode = DrawMode.OwnerDrawFixed;
-            listAccounts.ItemHeight = 18;
             listAccounts.DrawItem += listAccounts_DrawItem;
+
+            panelWorkspace.Resize += (_, _) => LayoutWorkspace();
+            LayoutWorkspace();
 
             btnSteamLogin.Text = "";
             btnScanQrLogin.Text = "";
@@ -277,6 +290,64 @@ namespace Steam_Desktop_Authenticator
       labelUpdate.Text = "";
       lblFooterKofi.Text = "";
       LayoutActionButtons();
+        }
+
+        private void LayoutWorkspace()
+        {
+            if (panelWorkspace.Width <= 0 || panelWorkspace.Height <= 0)
+            {
+                return;
+            }
+
+            int gap = Branding.Density == UiDensity.Compact ? 12 : 16;
+            int accountsWidth = Math.Max(270, Math.Min(330, (int)(panelWorkspace.Width * 0.36f)));
+            panelAccountsColumn.SetBounds(0, 0, accountsWidth, panelWorkspace.Height);
+            panelDetailsColumn.SetBounds(accountsWidth + gap, 0, panelWorkspace.Width - accountsWidth - gap, panelWorkspace.Height);
+
+            int searchHeight = 28;
+            int searchY = panelAccountsColumn.Height - searchHeight;
+            SetWrappedBounds(listAccounts, 0, 30, panelAccountsColumn.Width, Math.Max(120, searchY - 40));
+            label1.SetBounds(4, searchY + 5, 44, 18);
+            SetWrappedBounds(txtAccSearch, 50, searchY, panelAccountsColumn.Width - 50, searchHeight);
+
+            int detailWidth = panelDetailsColumn.Width;
+            groupBox1.SetBounds(0, 0, detailWidth, 158);
+            groupAccount.SetBounds(0, 170, detailWidth, 188);
+
+            int copyWidth = 58;
+            SetWrappedBounds(txtLoginToken, 18, 36, Math.Max(160, detailWidth - copyWidth - 54), 38);
+            btnCopy.SetBounds(detailWidth - copyWidth - 18, 36, copyWidth, 38);
+            pbTimeout.SetBounds(18, 94, Math.Max(160, detailWidth - 36), 14);
+            panelTimeoutTrack.Bounds = pbTimeout.Bounds;
+
+            lblAccountName.SetBounds(18, 26, Math.Max(140, detailWidth - 160), 24);
+            btnFavoriteAccount.SetBounds(detailWidth - 126, 24, 108, 28);
+            lblSessionBadge.SetBounds(18, 60, 122, 24);
+            lblSessionDetails.SetBounds(150, 58, Math.Max(150, detailWidth - 168), 42);
+            lblAccountHint.SetBounds(18, 104, Math.Max(160, detailWidth - 36), 18);
+
+            panelAccountActions.SetBounds(18, 126, Math.Max(220, detailWidth - 36), 34);
+            LayoutAccountActions();
+        }
+
+        private static void SetWrappedBounds(Control control, int x, int y, int width, int height)
+        {
+            Control shell = control.Parent is Panel parent &&
+                (Equals(parent.Tag, "glass-shell") || Equals(parent.Tag, "glass-list-shell"))
+                ? parent
+                : control;
+            shell.SetBounds(x, y, Math.Max(1, width), Math.Max(1, height));
+        }
+
+        private void LayoutAccountActions()
+        {
+            Button[] buttons = { btnTradeConfirmations, btnQuickLoginAgain, btnQuickTerminate };
+            int gap = 10;
+            int width = Math.Max(60, (panelAccountActions.Width - (gap * 2)) / 3);
+            for (int index = 0; index < buttons.Length; index++)
+            {
+                buttons[index].SetBounds(index * (width + gap), 2, width, 30);
+            }
         }
 
         private void ConfigureNavButton(Button button, int x, int width)
@@ -316,6 +387,7 @@ namespace Steam_Desktop_Authenticator
             trayQuit.Text = Localizer.Choose("Quit", "Выход");
             chkEnableQrHotkeys.Text = Localizer.Choose("QR hotkeys ready for quick approvals", "QR-хоткеи готовы для быстрого подтверждения");
             groupAccount.Tag = Localizer.Choose("Selected account", "Выбранный аккаунт");
+            lblAccountsSection.Text = Localizer.Choose("Accounts", "Аккаунты");
             btnTradeConfirmations.Text = Localizer.Choose("Confirmations", "Подтверждения");
             btnQuickLoginAgain.Text = Localizer.Choose("Login again", "Войти заново");
             btnQuickTerminate.Text = Localizer.Choose("End sessions", "Завершить сессии");
@@ -345,7 +417,7 @@ namespace Steam_Desktop_Authenticator
             menuStripTray.ShowImageMargin = false;
             menuStripTray.Padding = new Padding(8, 8, 8, 8);
             menuStripTray.Font = new Font("Segoe UI", 9.25F, FontStyle.Regular, GraphicsUnit.Point);
-            lblStatus.BackColor = Branding.AccentDark;
+            lblStatus.BackColor = Color.Transparent;
 
             btnNavFile.Click -= btnNavFile_Click;
             btnNavFile.Click += btnNavFile_Click;
@@ -930,6 +1002,7 @@ namespace Steam_Desktop_Authenticator
             ApplyLocalization();
             ApplyTheme();
             ModernUi.RefreshTheme(this);
+            LayoutWorkspace();
             loadAccountsList();
             RegisterGlobalHotkeys();
         }

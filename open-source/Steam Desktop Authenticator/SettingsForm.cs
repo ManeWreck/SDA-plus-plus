@@ -38,6 +38,16 @@ namespace Steam_Desktop_Authenticator
         private readonly Label lblHotkeyConfirmations = new Label();
         private readonly TextBox txtHotkeyConfirmations = new TextBox();
         private readonly Button btnAppearance = new Button();
+        private readonly Panel panelSettingsNav = new Panel();
+        private readonly Panel panelGeneralPage = new Panel();
+        private readonly Panel panelQrPage = new Panel();
+        private readonly Panel panelCloudPage = new Panel();
+        private readonly Panel panelCredentialsPage = new Panel();
+        private readonly Button btnPageGeneral = new Button();
+        private readonly Button btnPageQr = new Button();
+        private readonly Button btnPageCloud = new Button();
+        private readonly Button btnPageCredentials = new Button();
+        private readonly Label lblGeneralTitle = new Label();
         private Manifest manifest;
         private bool fullyLoaded = false;
         private bool compactLayoutApplied = false;
@@ -60,6 +70,7 @@ namespace Steam_Desktop_Authenticator
             CreateCloudProviderControls();
             CreateCredentialsControls();
             CreateAppearanceControl();
+            CreateSettingsNavigation();
             Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
             DoubleBuffered = true;
             ModernUi.AttachWindowChrome(this, false, false);
@@ -145,6 +156,11 @@ namespace Steam_Desktop_Authenticator
 
         private void CreateCredentialsControls()
         {
+            chkAutoLoginExpired.AutoSize = true;
+            chkAskBeforeAutoLogin.AutoSize = true;
+            chkRequireCredentialsEncryption.AutoSize = true;
+            chkAllowPlainCredentials.AutoSize = true;
+            chkCredentialsCloudEnabled.AutoSize = true;
             cmbCredentialsCloudProvider.DropDownStyle = ComboBoxStyle.DropDownList;
             btnBrowseCredentialsPath.Click += btnBrowseCredentialsPath_Click;
             Controls.Add(groupCredentials);
@@ -168,6 +184,62 @@ namespace Steam_Desktop_Authenticator
             Controls.Add(btnAppearance);
         }
 
+        private void CreateSettingsNavigation()
+        {
+            panelSettingsNav.BackColor = Branding.WindowBackground;
+            panelGeneralPage.BackColor = Branding.WindowBackground;
+            panelQrPage.BackColor = Branding.WindowBackground;
+            panelCloudPage.BackColor = Branding.WindowBackground;
+            panelCredentialsPage.BackColor = Branding.WindowBackground;
+            panelSettingsNav.Tag = "workspace-surface";
+            panelGeneralPage.Tag = "workspace-surface";
+            panelQrPage.Tag = "workspace-surface";
+            panelCloudPage.Tag = "workspace-surface";
+            panelCredentialsPage.Tag = "workspace-surface";
+
+            ConfigurePageButton(btnPageGeneral, panelGeneralPage);
+            ConfigurePageButton(btnPageQr, panelQrPage);
+            ConfigurePageButton(btnPageCloud, panelCloudPage);
+            ConfigurePageButton(btnPageCredentials, panelCredentialsPage);
+
+            panelSettingsNav.Controls.AddRange(new Control[]
+            {
+                btnPageGeneral, btnPageQr, btnPageCloud, btnPageCredentials
+            });
+            Controls.AddRange(new Control[]
+            {
+                panelSettingsNav, panelGeneralPage, panelQrPage, panelCloudPage, panelCredentialsPage
+            });
+        }
+
+        private void ConfigurePageButton(Button button, Panel page)
+        {
+            button.Click += (_, _) => ShowSettingsPage(page);
+            button.TextAlign = ContentAlignment.MiddleLeft;
+            button.Padding = new Padding(14, 0, 0, 0);
+        }
+
+        private void ShowSettingsPage(Panel page)
+        {
+            Panel[] pages = { panelGeneralPage, panelQrPage, panelCloudPage, panelCredentialsPage };
+            foreach (Panel candidate in pages)
+            {
+                candidate.Visible = candidate == page;
+            }
+
+            Button[] buttons = { btnPageGeneral, btnPageQr, btnPageCloud, btnPageCredentials };
+            Panel[] buttonPages = { panelGeneralPage, panelQrPage, panelCloudPage, panelCredentialsPage };
+            for (int index = 0; index < buttons.Length; index++)
+            {
+                bool selected = buttonPages[index] == page;
+                buttons[index].ForeColor = selected ? Branding.HeadingText : Branding.MutedText;
+                ModernUi.RoundButton(buttons[index], selected);
+            }
+
+            page.BringToFront();
+            btnSave.BringToFront();
+        }
+
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
@@ -175,6 +247,8 @@ namespace Steam_Desktop_Authenticator
 
         private void ApplyTheme()
         {
+            Panel activePage = new[] { panelGeneralPage, panelQrPage, panelCloudPage, panelCredentialsPage }
+                .FirstOrDefault(page => page.Visible) ?? panelGeneralPage;
             BackColor = Branding.WindowBackground;
             ForeColor = Branding.HeadingText;
 
@@ -184,7 +258,11 @@ namespace Steam_Desktop_Authenticator
             labelLanguage.ForeColor = Branding.MutedText;
             label1.ForeColor = Branding.MutedText;
 
-            foreach (Button button in Controls.OfType<Button>().Concat(groupQr.Controls.OfType<Button>()).Concat(groupCloud.Controls.OfType<Button>()).Concat(groupCredentials.Controls.OfType<Button>()))
+            foreach (Button button in Controls.OfType<Button>()
+                .Concat(panelGeneralPage.Controls.OfType<Button>())
+                .Concat(groupQr.Controls.OfType<Button>())
+                .Concat(groupCloud.Controls.OfType<Button>())
+                .Concat(groupCredentials.Controls.OfType<Button>()))
             {
                 button.FlatStyle = FlatStyle.Flat;
                 button.FlatAppearance.BorderSize = 1;
@@ -192,6 +270,12 @@ namespace Steam_Desktop_Authenticator
                 button.BackColor = Branding.AccentSoft;
                 button.ForeColor = Branding.HeadingText;
                 button.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Regular, GraphicsUnit.Point);
+                ModernUi.RoundButton(button, false);
+            }
+
+            foreach (Button button in panelSettingsNav.Controls.OfType<Button>())
+            {
+                button.Font = new Font("Segoe UI Semibold", 9.25F, FontStyle.Regular, GraphicsUnit.Point);
                 ModernUi.RoundButton(button, false);
             }
 
@@ -212,6 +296,7 @@ namespace Steam_Desktop_Authenticator
             }
 
             foreach (ComboBox comboBox in Controls.OfType<ComboBox>()
+                .Concat(panelGeneralPage.Controls.OfType<ComboBox>())
                 .Concat(groupQr.Controls.OfType<ComboBox>())
                 .Concat(groupCloud.Controls.OfType<ComboBox>())
                 .Concat(groupCredentials.Controls.OfType<ComboBox>()))
@@ -220,6 +305,7 @@ namespace Steam_Desktop_Authenticator
             }
 
             foreach (Label label in Controls.OfType<Label>()
+                .Concat(panelGeneralPage.Controls.OfType<Label>())
                 .Concat(groupQr.Controls.OfType<Label>())
                 .Concat(groupCloud.Controls.OfType<Label>())
                 .Concat(groupCredentials.Controls.OfType<Label>()))
@@ -233,6 +319,7 @@ namespace Steam_Desktop_Authenticator
             }
 
             foreach (CheckBox checkBox in Controls.OfType<CheckBox>()
+                .Concat(panelGeneralPage.Controls.OfType<CheckBox>())
                 .Concat(groupQr.Controls.OfType<CheckBox>())
                 .Concat(groupCloud.Controls.OfType<CheckBox>())
                 .Concat(groupCredentials.Controls.OfType<CheckBox>()))
@@ -247,6 +334,8 @@ namespace Steam_Desktop_Authenticator
             numCursorScanSize.BackColor = Branding.AccentDark;
             numCursorScanSize.ForeColor = Branding.HeadingText;
             lblCloudStatus.ForeColor = Branding.MutedText;
+            lblGeneralTitle.ForeColor = Branding.HeadingText;
+            ShowSettingsPage(activePage);
         }
 
         private void ApplyCompactLayout()
@@ -257,84 +346,114 @@ namespace Steam_Desktop_Authenticator
             }
 
             compactLayoutApplied = true;
-            ClientSize = new Size(760, 1028);
+            ClientSize = new Size(860, 700);
+            MinimumSize = new Size(760, 620);
 
-            labelLanguage.Location = new Point(12, 48);
-            cmbLanguage.Location = new Point(70, 44);
-            cmbLanguage.Size = new Size(148, 24);
-            btnAppearance.Location = new Point(228, 42);
-            btnAppearance.Size = new Size(132, 28);
+            panelSettingsNav.SetBounds(12, 52, 172, 580);
+            btnPageGeneral.SetBounds(0, 0, 172, 38);
+            btnPageQr.SetBounds(0, 48, 172, 38);
+            btnPageCloud.SetBounds(0, 96, 172, 38);
+            btnPageCredentials.SetBounds(0, 144, 172, 38);
 
-            chkPeriodicChecking.Location = new Point(12, 82);
-            chkPeriodicChecking.MaximumSize = new Size(338, 0);
+            Panel[] pages = { panelGeneralPage, panelQrPage, panelCloudPage, panelCredentialsPage };
+            foreach (Panel page in pages)
+            {
+                page.SetBounds(196, 52, 652, 580);
+                page.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            }
+
+            panelGeneralPage.Controls.AddRange(new Control[]
+            {
+                lblGeneralTitle, labelLanguage, cmbLanguage, btnAppearance,
+                chkPeriodicChecking, numPeriodicInterval, label1,
+                chkCheckAll, chkConfirmMarket, chkConfirmTrades
+            });
+            panelQrPage.Controls.Add(groupQr);
+            panelCloudPage.Controls.Add(groupCloud);
+            panelCredentialsPage.Controls.Add(groupCredentials);
+
+            lblGeneralTitle.Font = new Font("Segoe UI Semibold", 14F, FontStyle.Bold, GraphicsUnit.Point);
+            lblGeneralTitle.ForeColor = Branding.HeadingText;
+            lblGeneralTitle.SetBounds(12, 12, 400, 32);
+
+            labelLanguage.Location = new Point(12, 64);
+            cmbLanguage.Location = new Point(86, 60);
+            cmbLanguage.Size = new Size(180, 28);
+            btnAppearance.Location = new Point(278, 58);
+            btnAppearance.Size = new Size(170, 32);
+
+            chkPeriodicChecking.Location = new Point(12, 122);
+            chkPeriodicChecking.MaximumSize = new Size(600, 0);
             chkPeriodicChecking.AutoSize = true;
 
-            numPeriodicInterval.Location = new Point(12, 138);
-            numPeriodicInterval.Size = new Size(52, 22);
-            label1.Location = new Point(72, 136);
+            numPeriodicInterval.Location = new Point(12, 180);
+            numPeriodicInterval.Size = new Size(62, 24);
+            label1.Location = new Point(86, 178);
 
-            chkCheckAll.Location = new Point(12, 172);
-            chkConfirmMarket.Location = new Point(12, 198);
-            chkConfirmTrades.Location = new Point(12, 224);
+            chkCheckAll.Location = new Point(12, 226);
+            chkConfirmMarket.Location = new Point(12, 262);
+            chkConfirmTrades.Location = new Point(12, 298);
 
-            groupQr.Location = new Point(12, 260);
-            groupQr.Size = new Size(348, 404);
+            groupQr.Location = new Point(0, 0);
+            groupQr.Size = new Size(652, 580);
             groupQr.Padding = new Padding(14, 28, 14, 14);
             LayoutQrGroup();
 
-            groupCredentials.Location = new Point(12, 676);
-            groupCredentials.Size = new Size(348, 290);
+            groupCredentials.Location = new Point(0, 0);
+            groupCredentials.Size = new Size(652, 580);
             groupCredentials.Padding = new Padding(14, 28, 14, 14);
             LayoutCredentialsGroup();
 
-            groupCloud.Location = new Point(376, 48);
-            groupCloud.Size = new Size(372, 918);
+            groupCloud.Location = new Point(0, 0);
+            groupCloud.Size = new Size(652, 580);
             groupCloud.Padding = new Padding(14, 28, 14, 14);
             LayoutCloudGroup();
 
-            btnSave.Location = new Point(376, 978);
-            btnSave.Size = new Size(372, 42);
+            btnSave.Location = new Point(196, 644);
+            btnSave.Size = new Size(652, 42);
+            btnSave.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            ShowSettingsPage(panelGeneralPage);
         }
 
         private void LayoutQrGroup()
         {
             label3.Location = new Point(14, 20);
             label3.AutoSize = false;
-            label3.Size = new Size(153, 18);
+            label3.Size = new Size(298, 18);
             txtHotkeyToggle.Location = new Point(14, 38);
-            txtHotkeyToggle.Size = new Size(153, 24);
+            txtHotkeyToggle.Size = new Size(298, 28);
 
-            label4.Location = new Point(181, 20);
+            label4.Location = new Point(326, 20);
             label4.AutoSize = false;
-            label4.Size = new Size(153, 18);
-            txtHotkeyScan.Location = new Point(181, 38);
-            txtHotkeyScan.Size = new Size(153, 24);
+            label4.Size = new Size(298, 18);
+            txtHotkeyScan.Location = new Point(326, 38);
+            txtHotkeyScan.Size = new Size(312, 28);
 
             label5.Location = new Point(14, 76);
             label5.AutoSize = false;
-            label5.Size = new Size(153, 18);
+            label5.Size = new Size(298, 18);
             txtHotkeyPrev.Location = new Point(14, 94);
-            txtHotkeyPrev.Size = new Size(153, 24);
+            txtHotkeyPrev.Size = new Size(298, 28);
 
-            label6.Location = new Point(181, 76);
+            label6.Location = new Point(326, 76);
             label6.AutoSize = false;
-            label6.Size = new Size(153, 18);
-            txtHotkeyNext.Location = new Point(181, 94);
-            txtHotkeyNext.Size = new Size(153, 24);
+            label6.Size = new Size(298, 18);
+            txtHotkeyNext.Location = new Point(326, 94);
+            txtHotkeyNext.Size = new Size(312, 28);
 
             lblHotkeyAutoLoginAll.Location = new Point(14, 132);
-            lblHotkeyAutoLoginAll.Size = new Size(153, 18);
+            lblHotkeyAutoLoginAll.Size = new Size(298, 18);
             txtHotkeyAutoLoginAll.Location = new Point(14, 150);
-            txtHotkeyAutoLoginAll.Size = new Size(153, 24);
+            txtHotkeyAutoLoginAll.Size = new Size(298, 28);
 
-            lblHotkeyConfirmations.Location = new Point(181, 132);
-            lblHotkeyConfirmations.Size = new Size(153, 18);
-            txtHotkeyConfirmations.Location = new Point(181, 150);
-            txtHotkeyConfirmations.Size = new Size(153, 24);
+            lblHotkeyConfirmations.Location = new Point(326, 132);
+            lblHotkeyConfirmations.Size = new Size(298, 18);
+            txtHotkeyConfirmations.Location = new Point(326, 150);
+            txtHotkeyConfirmations.Size = new Size(312, 28);
 
             label7.Location = new Point(14, 188);
             cmbQrCaptureMode.Location = new Point(14, 206);
-            cmbQrCaptureMode.Size = new Size(320, 24);
+            cmbQrCaptureMode.Size = new Size(624, 28);
 
             lblCursorScanSize.Location = new Point(14, 246);
             numCursorScanSize.Location = new Point(160, 244);
@@ -343,7 +462,7 @@ namespace Steam_Desktop_Authenticator
             btnResetHotkeys.Size = new Size(96, 28);
 
             chkEnableQrHotkeys.Location = new Point(14, 290);
-            chkEnableQrHotkeys.MaximumSize = new Size(320, 0);
+            chkEnableQrHotkeys.MaximumSize = new Size(624, 0);
         }
 
         private void LayoutCloudGroup()
@@ -351,50 +470,50 @@ namespace Steam_Desktop_Authenticator
             lblCloudProvider.Location = new Point(14, 20);
             lblCloudProvider.AutoSize = true;
             cmbCloudProvider.Location = new Point(14, 38);
-            cmbCloudProvider.Size = new Size(344, 24);
+            cmbCloudProvider.Size = new Size(624, 28);
 
             label8.Location = new Point(14, 74);
             txtWebDavUrl.Location = new Point(14, 92);
-            txtWebDavUrl.Size = new Size(344, 24);
+            txtWebDavUrl.Size = new Size(624, 28);
 
             label9.Location = new Point(14, 128);
             txtWebDavUsername.Location = new Point(14, 146);
-            txtWebDavUsername.Size = new Size(344, 24);
+            txtWebDavUsername.Size = new Size(624, 28);
 
             label10.Location = new Point(14, 182);
             txtWebDavPassword.Location = new Point(14, 200);
-            txtWebDavPassword.Size = new Size(344, 24);
+            txtWebDavPassword.Size = new Size(624, 28);
 
             lblCloudExtra.Location = new Point(14, 236);
             lblCloudExtra.AutoSize = true;
             txtCloudExtra.Location = new Point(14, 254);
-            txtCloudExtra.Size = new Size(344, 24);
+            txtCloudExtra.Size = new Size(624, 28);
 
             label11.Location = new Point(14, 290);
             txtWebDavPath.Location = new Point(14, 308);
-            txtWebDavPath.Size = new Size(344, 24);
+            txtWebDavPath.Size = new Size(624, 28);
 
             btnOneDriveSignIn.Location = new Point(14, 146);
-            btnOneDriveSignIn.Size = new Size(344, 30);
+            btnOneDriveSignIn.Size = new Size(624, 30);
 
             chkSyncStoredCredentials.Location = new Point(14, 346);
-            chkSyncStoredCredentials.MaximumSize = new Size(344, 0);
+            chkSyncStoredCredentials.MaximumSize = new Size(624, 0);
 
             btnCloudTest.Location = new Point(14, 386);
-            btnCloudTest.Size = new Size(106, 30);
-            btnCloudPull.Location = new Point(132, 386);
-            btnCloudPull.Size = new Size(106, 30);
-            btnCloudPush.Location = new Point(250, 386);
-            btnCloudPush.Size = new Size(108, 30);
+            btnCloudTest.Size = new Size(196, 30);
+            btnCloudPull.Location = new Point(220, 386);
+            btnCloudPull.Size = new Size(196, 30);
+            btnCloudPush.Location = new Point(428, 386);
+            btnCloudPush.Size = new Size(210, 30);
 
             btnCloudOpenBackups.Location = new Point(14, 428);
-            btnCloudOpenBackups.Size = new Size(344, 30);
+            btnCloudOpenBackups.Size = new Size(624, 30);
 
             lblCloudStatus.Location = new Point(14, 470);
-            lblCloudStatus.Size = new Size(344, 38);
+            lblCloudStatus.Size = new Size(624, 38);
             lblCloudLastSyncTitle.Location = new Point(14, 516);
             lblCloudLastSyncValue.Location = new Point(14, 538);
-            lblCloudLastSyncValue.Size = new Size(344, 42);
+            lblCloudLastSyncValue.Size = new Size(624, 42);
         }
 
         private void LayoutCredentialsGroup()
@@ -408,9 +527,9 @@ namespace Steam_Desktop_Authenticator
             lblCredentialsPath.Location = new Point(14, 86);
             lblCredentialsPath.Size = new Size(320, 18);
             txtCredentialsPath.Location = new Point(14, 106);
-            txtCredentialsPath.Size = new Size(226, 24);
-            btnBrowseCredentialsPath.Location = new Point(246, 104);
-            btnBrowseCredentialsPath.Size = new Size(88, 28);
+            txtCredentialsPath.Size = new Size(480, 28);
+            btnBrowseCredentialsPath.Location = new Point(506, 104);
+            btnBrowseCredentialsPath.Size = new Size(132, 30);
 
             chkRequireCredentialsEncryption.Location = new Point(14, 144);
             chkRequireCredentialsEncryption.MaximumSize = new Size(320, 0);
@@ -424,12 +543,12 @@ namespace Steam_Desktop_Authenticator
             lblCredentialsCloudProvider.Location = new Point(14, 234);
             lblCredentialsCloudProvider.Size = new Size(120, 18);
             cmbCredentialsCloudProvider.Location = new Point(140, 230);
-            cmbCredentialsCloudProvider.Size = new Size(194, 24);
+            cmbCredentialsCloudProvider.Size = new Size(498, 28);
 
             lblCredentialsCloudPath.Location = new Point(14, 260);
             lblCredentialsCloudPath.Size = new Size(120, 18);
             txtCredentialsCloudPath.Location = new Point(140, 256);
-            txtCredentialsCloudPath.Size = new Size(194, 24);
+            txtCredentialsCloudPath.Size = new Size(498, 28);
         }
 
         private void ApplyLocalization()
@@ -438,6 +557,11 @@ namespace Steam_Desktop_Authenticator
             ModernUi.ApplyGlassCard(groupCloud, Localizer.Choose("Cloud Sync", "Облачная синхронизация"));
             ModernUi.ApplyGlassCard(groupCredentials, Localizer.Choose("Credentials and Auto Login", "Логины и автовход"));
             Text = Localizer.Choose("Settings", "Настройки");
+            lblGeneralTitle.Text = Localizer.Choose("General settings", "Общие настройки");
+            btnPageGeneral.Text = Localizer.Choose("General", "Общие");
+            btnPageQr.Text = Localizer.Choose("QR and hotkeys", "QR и хоткеи");
+            btnPageCloud.Text = Localizer.Choose("Cloud sync", "Облако");
+            btnPageCredentials.Text = Localizer.Choose("Credentials", "Логины");
             labelLanguage.Text = Localizer.Choose("Language:", "Язык:");
             chkPeriodicChecking.Text = Localizer.Choose(
                 "Periodically check for new confirmations\r\nand show a popup when they arrive",
