@@ -8,6 +8,13 @@ namespace Steam_Desktop_Authenticator
     {
         public static async Task<bool> ReceiveFromMobileAsync(IWin32Window owner)
         {
+            if (!DesktopDeviceAccess.CanManageLocalVault)
+            {
+                MessageBox.Show(
+                    Localizer.Choose("Cloud vault pairing is available only on an Admin device.", "Подключение облачного хранилища доступно только на Admin-устройстве."),
+                    Branding.FullAppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
             using CloudPairingForm pairing = new CloudPairingForm();
             if (pairing.ShowDialog(owner) != DialogResult.OK || pairing.PairingResult == null)
                 return false;
@@ -60,6 +67,10 @@ namespace Steam_Desktop_Authenticator
 
         public static CloudPairingResult LoadDesktopWebDavSettings()
         {
+            if (!DesktopDeviceAccess.CanManageLocalVault)
+                throw new InvalidOperationException(Localizer.Choose(
+                    "Cloud vault pairing is available only on an Admin device.",
+                    "Подключение облачного хранилища доступно только на Admin-устройстве."));
             Manifest manifest = Manifest.GetManifest(true);
             if (manifest.CloudProvider != CloudProvider.WebDav)
                 throw new InvalidOperationException(Localizer.Choose(

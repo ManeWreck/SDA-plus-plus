@@ -1617,7 +1617,7 @@ namespace Steam_Desktop_Authenticator
             menuTerminateSessions.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("TerminateSessions", currentAccount);
             btnQuickTerminate.Enabled = menuTerminateSessions.Enabled;
             btnCopy.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("ViewGuardCode", currentAccount);
-            btnScanQrLogin.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("ApproveQr", currentAccount);
+            btnScanQrLogin.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("ApproveSteamQr", currentAccount);
         }
 
         private async Task CheckDeviceTrustAsync()

@@ -106,6 +106,12 @@ namespace Steam_Desktop_Authenticator
 
             ApplyLocalization();
             RefreshCloudLastSyncInfo();
+
+            if (!DesktopDeviceAccess.CanManageLocalVault)
+            {
+                groupCloud.Enabled = false;
+                groupCredentials.Enabled = false;
+            }
             SetControlsEnabledState(chkPeriodicChecking.Checked);
             UpdateQrControls();
             fullyLoaded = true;

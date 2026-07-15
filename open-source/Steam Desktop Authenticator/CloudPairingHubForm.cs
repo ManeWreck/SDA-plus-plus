@@ -40,6 +40,15 @@ namespace Steam_Desktop_Authenticator
             Button trustedDevices = CreateButton(
                 Localizer.Choose("Trusted devices", "Доверенные устройства"), 224, false);
 
+            if (!DesktopDeviceAccess.CanManageLocalVault)
+            {
+                receive.Enabled = false;
+                send.Enabled = false;
+                hint.Text = Localizer.Choose(
+                    "Cloud vault transfer is locked on Trusted devices. Device registry controls remain available.",
+                    "Передача облачного хранилища заблокирована на Trusted-устройствах. Управление реестром устройств доступно.");
+            }
+
             receive.Click += async (_, __) => await CloudPairingWorkflow.ReceiveFromMobileAsync(this);
             send.Click += (_, __) =>
             {
