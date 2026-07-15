@@ -27,6 +27,8 @@ namespace Steam_Desktop_Authenticator
         private readonly Button wipe = new Button();
         private readonly Button lockdown = new Button();
         private readonly Button activity = new Button();
+        private readonly Button lockDevice = new Button();
+        private readonly Button terminateSessions = new Button();
         private DesktopRegistrySettings settings;
 
         public DeviceRegistryForm()
@@ -57,6 +59,8 @@ namespace Steam_Desktop_Authenticator
             wipe = MakeButton(Localizer.Choose("Wipe", "Очистить"), 360, 410, 90, false);
             lockdown = MakeButton(Localizer.Choose("Lockdown", "Аварийно"), 460, 410, 140, false);
             activity = MakeButton(Localizer.Choose("Security activity", "События безопасности"), 20, 456, 180, false);
+            lockDevice = MakeButton(Localizer.Choose("Lock device", "Заблокировать"), 210, 456, 120, false);
+            terminateSessions = MakeButton(Localizer.Choose("End sessions", "Завершить сессии"), 340, 456, 160, false);
             setup.Click += async (_, __) => await SetupAsync();
             join.Click += async (_, __) => await JoinAsync();
             add.Click += (_, __) =>
@@ -68,7 +72,9 @@ namespace Steam_Desktop_Authenticator
             wipe.Click += async (_, __) => await WipeAsync();
             lockdown.Click += async (_, __) => await LockdownAsync();
             activity.Click += (_, __) => new DeviceAuditForm(settings).ShowDialog(this);
-            Controls.AddRange(new Control[] { status, devices, setup, join, add, refresh, revoke, wipe, lockdown, activity });
+            lockDevice.Click += async (_, __) => await IssueDeviceCommandAsync("Lock");
+            terminateSessions.Click += async (_, __) => await IssueDeviceCommandAsync("TerminateSteamSessions");
+            Controls.AddRange(new Control[] { status, devices, setup, join, add, refresh, revoke, wipe, lockdown, activity, lockDevice, terminateSessions });
             Paint += ModernUi.PaintGlassBackground;
             Shown += async (_, __) => await LoadAsync();
         }
@@ -86,7 +92,8 @@ namespace Steam_Desktop_Authenticator
             bool configured = !string.IsNullOrWhiteSpace(settings.VaultId);
             setup.Visible = !configured;
             join.Visible = !configured;
-            add.Visible = refresh.Visible = revoke.Visible = wipe.Visible = lockdown.Visible = activity.Visible = configured && settings.Role == "Admin";
+            add.Visible = refresh.Visible = revoke.Visible = wipe.Visible = lockdown.Visible = activity.Visible =
+                lockDevice.Visible = terminateSessions.Visible = configured && settings.Role == "Admin";
             devices.Visible = configured && settings.Role == "Admin";
             status.Text = configured
                 ? settings.Role == "Admin"
@@ -188,13 +195,36 @@ namespace Steam_Desktop_Authenticator
         private async Task WipeAsync()
         {
             if (devices.SelectedItems.Count == 0 || devices.SelectedItems[0].Tag is not DesktopRegistryDevice target) return;
+            if (target.Role == "Admin")
+            {
+                MessageBox.Show(Localizer.Choose("Remote commands apply only to Trusted and Temporary devices.", "Удалённые команды применяются только к Trusted и Temporary устройствам."), Text);
+                return;
+            }
             if (!DesktopAdminStepUp.Require(this, settings)) return;
             if (MessageBox.Show(Localizer.Choose("Queue local data removal on this device?", "Поставить в очередь удаление локальных данных на этом устройстве?"), Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
             await client.IssueCommandAsync(settings, target.DeviceId, "WipeLocalData", CancellationToken.None);
             MessageBox.Show(Localizer.Choose("Wipe command queued.", "Команда очистки поставлена в очередь."), Text);
         }
 
-        private void SetBusy(bool busy) => setup.Enabled = join.Enabled = add.Enabled = refresh.Enabled = revoke.Enabled = wipe.Enabled = lockdown.Enabled = activity.Enabled = !busy;
+        private async Task IssueDeviceCommandAsync(string command)
+        {
+            if (devices.SelectedItems.Count == 0 || devices.SelectedItems[0].Tag is not DesktopRegistryDevice target) return;
+            if (target.Role == "Admin")
+            {
+                MessageBox.Show(Localizer.Choose("Remote commands apply only to Trusted and Temporary devices.", "Удалённые команды применяются только к Trusted и Temporary устройствам."), Text);
+                return;
+            }
+            if (!DesktopAdminStepUp.Require(this, settings)) return;
+            await client.IssueCommandAsync(settings, target.DeviceId, command, CancellationToken.None);
+            MessageBox.Show(
+                command == "Lock"
+                    ? Localizer.Choose("Lock command queued.", "Команда блокировки поставлена в очередь.")
+                    : Localizer.Choose("Steam session termination command queued.", "Команда завершения Steam-сессий поставлена в очередь."),
+                Text);
+        }
+
+        private void SetBusy(bool busy) => setup.Enabled = join.Enabled = add.Enabled = refresh.Enabled = revoke.Enabled = wipe.Enabled =
+            lockdown.Enabled = activity.Enabled = lockDevice.Enabled = terminateSessions.Enabled = !busy;
     }
 
     internal sealed class DeviceAuditForm : Form
