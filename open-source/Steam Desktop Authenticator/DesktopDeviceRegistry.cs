@@ -172,6 +172,51 @@ namespace Steam_Desktop_Authenticator
             return source.Where(account => settings.GrantedAccountSteamIds.Contains(account.Session?.SteamID.ToString() ?? string.Empty)).ToArray();
         }
 
+        public static SteamGuardAccount[] BuildVisibleAccounts(
+            IEnumerable<SteamGuardAccount> localAccounts,
+            ISet<ulong> remoteSteamIds,
+            Func<ulong, string> remoteAccountName)
+        {
+            return BuildVisibleAccountsForSettings(localAccounts, remoteSteamIds, remoteAccountName, Current);
+        }
+
+        internal static SteamGuardAccount[] BuildVisibleAccountsForSettings(
+            IEnumerable<SteamGuardAccount> localAccounts,
+            ISet<ulong> remoteSteamIds,
+            Func<ulong, string> remoteAccountName,
+            DesktopRegistrySettings settings)
+        {
+            if (remoteSteamIds == null) throw new ArgumentNullException(nameof(remoteSteamIds));
+            if (remoteAccountName == null) throw new ArgumentNullException(nameof(remoteAccountName));
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+            remoteSteamIds.Clear();
+            SteamGuardAccount[] source = localAccounts?.ToArray() ?? Array.Empty<SteamGuardAccount>();
+            bool trusted = !string.IsNullOrWhiteSpace(settings.Role) && settings.Role != "Admin";
+            if (trusted && settings.ExpiresAt != null && settings.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
+                return Array.Empty<SteamGuardAccount>();
+            List<SteamGuardAccount> accounts = trusted
+                ? source.Where(account => settings.GrantedAccountSteamIds.Contains(account.Session?.SteamID.ToString() ?? string.Empty)).ToList()
+                : source.ToList();
+            if (!trusted)
+                return accounts.ToArray();
+
+            HashSet<ulong> localSteamIds = accounts
+                .Where(account => account?.Session != null)
+                .Select(account => account.Session.SteamID)
+                .ToHashSet();
+            foreach (string grantedSteamId in settings.GrantedAccountSteamIds.OrderBy(value => value, StringComparer.Ordinal))
+            {
+                if (!ulong.TryParse(grantedSteamId, out ulong steamId) || localSteamIds.Contains(steamId)) continue;
+                remoteSteamIds.Add(steamId);
+                accounts.Add(new SteamGuardAccount
+                {
+                    AccountName = remoteAccountName(steamId),
+                    Session = new SessionData { SteamID = steamId }
+                });
+            }
+            return accounts.ToArray();
+        }
+
         public static bool Permits(string capability, SteamGuardAccount account = null)
         {
             DesktopRegistrySettings settings = Current;

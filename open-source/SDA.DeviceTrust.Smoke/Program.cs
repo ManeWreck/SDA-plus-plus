@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using SteamAuth;
 
 Assembly application = Assembly.Load("SDA++");
 Type store = application.GetType("Steam_Desktop_Authenticator.DeviceIdentityStore", throwOnError: true)!;
@@ -107,6 +108,55 @@ bool steamQrFixtureMatches =
     Encoding.UTF8.GetString(qrResponsePayload) ==
         "{\"version\":1,\"success\":true,\"steamId\":\"76561198000000001\",\"error\":null}";
 
+Type registrySettingsType = application.GetType(
+    "Steam_Desktop_Authenticator.DesktopRegistrySettings",
+    throwOnError: true)!;
+Type deviceAccessType = application.GetType(
+    "Steam_Desktop_Authenticator.DesktopDeviceAccess",
+    throwOnError: true)!;
+object trustedSettings = Activator.CreateInstance(registrySettingsType)!;
+registrySettingsType.GetProperty("Role")!.SetValue(trustedSettings, "TrustedOnline");
+registrySettingsType.GetProperty("GrantedAccountSteamIds")!.SetValue(
+    trustedSettings,
+    new HashSet<string> { "76561198000000001", "76561198000000002" });
+SteamGuardAccount localGrantedAccount = new SteamGuardAccount
+{
+    AccountName = "local-granted",
+    SharedSecret = "local-secret-fixture",
+    Session = new SessionData
+    {
+        SteamID = 76561198000000001,
+        AccessToken = "local-access-token-fixture"
+    }
+};
+SteamGuardAccount localUngrantedAccount = new SteamGuardAccount
+{
+    AccountName = "local-ungranted",
+    Session = new SessionData { SteamID = 76561198000000003 }
+};
+HashSet<ulong> remoteSteamIds = new HashSet<ulong>();
+SteamGuardAccount[] visibleAccounts = (SteamGuardAccount[])deviceAccessType.GetMethod(
+    "BuildVisibleAccountsForSettings",
+    BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(
+        null,
+        new object[]
+        {
+            new[] { localGrantedAccount, localUngrantedAccount },
+            remoteSteamIds,
+            (Func<ulong, string>)(steamId => $"remote-{steamId}"),
+            trustedSettings
+        })!;
+SteamGuardAccount remotePlaceholder = visibleAccounts.Single(account => account.Session.SteamID == 76561198000000002);
+bool remotePlaceholderSafe =
+    visibleAccounts.Length == 2 &&
+    ReferenceEquals(visibleAccounts.Single(account => account.Session.SteamID == 76561198000000001), localGrantedAccount) &&
+    remoteSteamIds.SetEquals(new[] { 76561198000000002UL }) &&
+    remotePlaceholder.SharedSecret == null &&
+    remotePlaceholder.IdentitySecret == null &&
+    remotePlaceholder.Session.AccessToken == null &&
+    remotePlaceholder.Session.RefreshToken == null &&
+    visibleAccounts.All(account => account.Session.SteamID != 76561198000000003);
+
 object first = getInfo.Invoke(null, null)!;
 object second = getInfo.Invoke(null, null)!;
 Type infoType = first.GetType();
@@ -170,7 +220,8 @@ Console.WriteLine($"RemoteActionContextTamperRejected={actionContextTamperReject
 Console.WriteLine($"RemoteActionAuthorizationFixtureMatches={authorizationFixtureMatches}");
 Console.WriteLine($"GuardCodeRemotePayloadFixtureMatches={guardCodeFixtureMatches}");
 Console.WriteLine($"SteamQrRemotePayloadFixtureMatches={steamQrFixtureMatches}");
+Console.WriteLine($"RemoteAccountPlaceholderSafe={remotePlaceholderSafe}");
 
 return firstId == secondId && valid && !tampered && encryptionBindingValid && !encryptionBindingTampered &&
     actionPayload.SequenceEqual(decryptedAction) && actionContextFixtureMatches && actionContextTamperRejected &&
-    authorizationFixtureMatches && guardCodeFixtureMatches && steamQrFixtureMatches ? 0 : 1;
+    authorizationFixtureMatches && guardCodeFixtureMatches && steamQrFixtureMatches && remotePlaceholderSafe ? 0 : 1;

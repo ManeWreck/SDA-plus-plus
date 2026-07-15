@@ -18,6 +18,7 @@ namespace Steam_Desktop_Authenticator
     {
         private SteamGuardAccount currentAccount = null;
         private SteamGuardAccount[] allAccounts;
+        private readonly HashSet<ulong> remoteAccountSteamIds = new HashSet<ulong>();
         private List<SteamGuardAccount> filteredAccounts = new List<SteamGuardAccount>();
         private List<string> updatedSessions = new List<string>();
         private Manifest manifest;
@@ -74,6 +75,11 @@ namespace Steam_Desktop_Authenticator
         private bool updateNotificationShown = false;
         private bool deviceTrustCheckInProgress = false;
         private string updatePageUrl = Branding.GithubUrl;
+        private CancellationTokenSource remoteGuardCodeCts;
+        private bool remoteGuardCodeInProgress = false;
+        private string remoteGuardCode = string.Empty;
+        private long remoteGuardCodeValidUntil = 0;
+        private DateTime remoteGuardCodeRetryAt = DateTime.MinValue;
 
         // Forms
         private TradePopupForm popupFrm = new TradePopupForm();
@@ -579,6 +585,8 @@ namespace Steam_Desktop_Authenticator
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            remoteGuardCodeCts?.Cancel();
+            remoteGuardCodeCts?.Dispose();
             updateCheckTimer.Stop();
             updateCheckTimer.Dispose();
             deviceTrustTimer.Stop();
@@ -1038,6 +1046,10 @@ namespace Steam_Desktop_Authenticator
             }
 
             SteamGuardAccount account = filteredAccounts[selectedIndex];
+            if (currentAccount?.Session?.SteamID != account.Session?.SteamID)
+            {
+                ResetRemoteGuardCodeRequest();
+            }
             trayAccountList.Text = account.AccountName;
             currentAccount = account;
             btnTradeConfirmations.Enabled = menuDeactivateAuthenticator.Enabled = menuTerminateSessions.Enabled = true;
@@ -1162,7 +1174,7 @@ namespace Steam_Desktop_Authenticator
                 return;
             }
             string text = txtLoginToken.Text;
-            if (String.IsNullOrEmpty(text))
+            if (String.IsNullOrEmpty(text) || (IsRemoteAccount(currentAccount) && !Regex.IsMatch(text, "^[23456789BCDFGHJKMNPQRTVWXY]{5}$")))
                 return;
             Clipboard.SetText(text);
         }
@@ -1188,13 +1200,15 @@ namespace Steam_Desktop_Authenticator
 
                 return;
             }
-            if (!DesktopDeviceAccess.Permits("ApproveSteamQr", currentAccount))
+            SteamGuardAccount approvalAccount = currentAccount;
+            if (!DesktopDeviceAccess.Permits("ApproveSteamQr", approvalAccount))
             {
                 ShowDevicePermissionDenied();
                 return;
             }
 
-            if (!await EnsureAccountSessionReadyAsync(currentAccount, "Steam QR Login", true))
+            bool remoteAccount = IsRemoteAccount(approvalAccount);
+            if (!remoteAccount && !await EnsureAccountSessionReadyAsync(approvalAccount, "Steam QR Login", true))
             {
                 return;
             }
@@ -1213,8 +1227,16 @@ namespace Steam_Desktop_Authenticator
 
                 lblStatus.Text = Localizer.Choose("Approving QR login...", "Подтверждение QR-входа...");
                 ShowOverlay(Localizer.Choose("Steam QR", "Steam QR"), Localizer.Choose("Approving login...", "Подтверждение входа..."));
-                string result = await qrLoginService.HandleDecodedQrAsync(currentAccount, qrText);
-                manifest.SaveAccount(currentAccount, manifest.Encrypted, passKey);
+                string result;
+                if (remoteAccount)
+                {
+                    result = await RequestRemoteSteamQrApprovalAsync(approvalAccount, qrText);
+                }
+                else
+                {
+                    result = await qrLoginService.HandleDecodedQrAsync(approvalAccount, qrText);
+                    manifest.SaveAccount(approvalAccount, manifest.Encrypted, passKey);
+                }
 
                 lblStatus.Text = "";
                 ShowOverlay(Localizer.Choose("Steam QR", "Steam QR"), result);
@@ -1241,8 +1263,35 @@ namespace Steam_Desktop_Authenticator
             finally
             {
                 qrScanInProgress = false;
-                btnScanQrLogin.Enabled = true;
                 btnScanQrLogin.Text = originalText;
+                ApplyDeviceRoleRestrictions();
+            }
+        }
+
+        private async Task<string> RequestRemoteSteamQrApprovalAsync(SteamGuardAccount account, string qrText)
+        {
+            DesktopRegistrySettings settings = DesktopDeviceAccess.Current;
+            string steamId = account.Session.SteamID.ToString();
+            using CancellationTokenSource timeout = new CancellationTokenSource(TimeSpan.FromSeconds(100));
+            DesktopDeviceRegistryClient client = new DesktopDeviceRegistryClient();
+            string actionId = await client.RequestSteamQrApprovalAsync(settings, steamId, qrText, timeout.Token);
+
+            while (true)
+            {
+                SteamQrRemoteResponse response = await client.ConsumeSteamQrApprovalResultAsync(settings, actionId, timeout.Token);
+                if (response != null)
+                {
+                    if (!response.Success)
+                    {
+                        throw new InvalidOperationException(RemoteActionErrorText(response.Error));
+                    }
+
+                    return Localizer.Choose(
+                        "QR login approved by the Admin device.",
+                        "QR-вход подтвержден Admin-устройством.");
+                }
+
+                await Task.Delay(1250, timeout.Token);
             }
         }
 
@@ -1574,15 +1623,134 @@ namespace Steam_Desktop_Authenticator
         {
             if (currentAccount != null && steamTime != 0)
             {
-                popupFrm.Account = currentAccount;
-                txtLoginToken.Text = DesktopDeviceAccess.Permits("ViewGuardCode", currentAccount)
-                    ? currentAccount.GenerateSteamGuardCodeForTime(steamTime)
-                    : "LOCKED";
-                int elapsed = (int)(steamTime - (currentSteamChunk * 30L));
-                UpdateTimeoutBar(30 - elapsed, 30);
+                if (IsRemoteAccount(currentAccount))
+                {
+                    UpdateRemoteGuardCodeDisplay();
+                }
+                else
+                {
+                    popupFrm.Account = currentAccount;
+                    txtLoginToken.Text = DesktopDeviceAccess.Permits("ViewGuardCode", currentAccount)
+                        ? currentAccount.GenerateSteamGuardCodeForTime(steamTime)
+                        : "LOCKED";
+                    int elapsed = (int)(steamTime - (currentSteamChunk * 30L));
+                    UpdateTimeoutBar(30 - elapsed, 30);
+                }
             }
 
             UpdateSelectedAccountCard();
+        }
+
+        private bool IsRemoteAccount(SteamGuardAccount account)
+        {
+            return account?.Session != null && remoteAccountSteamIds.Contains(account.Session.SteamID);
+        }
+
+        private void UpdateRemoteGuardCodeDisplay()
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            if (!string.IsNullOrEmpty(remoteGuardCode) && remoteGuardCodeValidUntil > now)
+            {
+                txtLoginToken.Text = remoteGuardCode;
+                int secondsRemaining = Math.Max(0, (int)Math.Ceiling((remoteGuardCodeValidUntil - now) / 1000d));
+                UpdateTimeoutBar(secondsRemaining, 30);
+                return;
+            }
+
+            remoteGuardCode = string.Empty;
+            remoteGuardCodeValidUntil = 0;
+            txtLoginToken.Text = remoteGuardCodeInProgress
+                ? Localizer.Choose("WAIT", "ЖДИТЕ")
+                : "-----";
+            UpdateTimeoutBar(0, 30);
+            if (!remoteGuardCodeInProgress && DateTime.UtcNow >= remoteGuardCodeRetryAt &&
+                DesktopDeviceAccess.Permits("ViewGuardCode", currentAccount))
+            {
+                _ = RefreshRemoteGuardCodeAsync(currentAccount);
+            }
+        }
+
+        private async Task RefreshRemoteGuardCodeAsync(SteamGuardAccount account)
+        {
+            if (remoteGuardCodeInProgress || !IsRemoteAccount(account)) return;
+            remoteGuardCodeInProgress = true;
+            remoteGuardCodeRetryAt = DateTime.UtcNow.AddSeconds(15);
+            remoteGuardCodeCts?.Cancel();
+            remoteGuardCodeCts?.Dispose();
+            remoteGuardCodeCts = new CancellationTokenSource(TimeSpan.FromSeconds(100));
+            CancellationTokenSource requestCts = remoteGuardCodeCts;
+            CancellationToken token = requestCts.Token;
+            ulong requestedSteamId = account.Session.SteamID;
+
+            try
+            {
+                DesktopRegistrySettings settings = DesktopDeviceAccess.Current;
+                DesktopDeviceRegistryClient client = new DesktopDeviceRegistryClient();
+                string actionId = await client.RequestGuardCodeAsync(settings, requestedSteamId.ToString(), token);
+                while (true)
+                {
+                    GuardCodeRemoteResponse response = await client.ConsumeGuardCodeResultAsync(settings, actionId, token);
+                    if (response != null)
+                    {
+                        if (!response.Success)
+                            throw new InvalidOperationException(RemoteActionErrorText(response.Error));
+                        if (currentAccount?.Session?.SteamID != requestedSteamId) return;
+
+                        remoteGuardCode = response.Code;
+                        remoteGuardCodeValidUntil = response.ValidUntil ?? 0;
+                        remoteGuardCodeRetryAt = DateTime.MinValue;
+                        UpdateRemoteGuardCodeDisplay();
+                        return;
+                    }
+
+                    await Task.Delay(1250, token);
+                }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                if (currentAccount?.Session?.SteamID == requestedSteamId)
+                {
+                    txtLoginToken.Text = "ERROR";
+                    lblStatus.Text = Localizer.Choose("Remote Guard code: ", "Удалённый Guard-код: ") + GetInnermostExceptionMessage(ex);
+                }
+            }
+            finally
+            {
+                if (ReferenceEquals(remoteGuardCodeCts, requestCts))
+                {
+                    remoteGuardCodeInProgress = false;
+                    if (currentAccount?.Session?.SteamID == requestedSteamId)
+                    {
+                        UpdateRemoteGuardCodeDisplay();
+                    }
+                }
+            }
+        }
+
+        private void ResetRemoteGuardCodeRequest()
+        {
+            remoteGuardCodeCts?.Cancel();
+            remoteGuardCodeCts?.Dispose();
+            remoteGuardCodeCts = null;
+            remoteGuardCodeInProgress = false;
+            remoteGuardCode = string.Empty;
+            remoteGuardCodeValidUntil = 0;
+            remoteGuardCodeRetryAt = DateTime.MinValue;
+        }
+
+        private static string RemoteActionErrorText(string error)
+        {
+            return error switch
+            {
+                "AccountNotGranted" => Localizer.Choose("This account is no longer granted to this device.", "Этот аккаунт больше не выдан этому устройству."),
+                "AccountUnavailable" => Localizer.Choose("The Admin device cannot access this account.", "Admin-устройство не может получить доступ к этому аккаунту."),
+                "GenerationFailed" => Localizer.Choose("The Admin device could not generate a Guard code.", "Admin-устройство не смогло создать Guard-код."),
+                "ApprovalFailed" => Localizer.Choose("The Admin device could not approve this QR login.", "Admin-устройство не смогло подтвердить этот QR-вход."),
+                _ => Localizer.Choose("The Admin device rejected the remote request.", "Admin-устройство отклонило удалённый запрос.")
+            };
         }
 
         private void ShowDevicePermissionDenied()
@@ -1610,12 +1778,15 @@ namespace Steam_Desktop_Authenticator
             btnManageEncryption.Enabled = managesVault && manifest != null && manifest.Entries.Count > 0;
             menuImportAccount.Enabled = managesVault;
             menuManageCredentials.Enabled = managesVault;
-            menuRemoveAccountFromManifest.Enabled = managesVault && currentAccount != null;
-            menuDeactivateAuthenticator.Enabled = managesVault && currentAccount != null;
+            bool localAccount = currentAccount != null && !IsRemoteAccount(currentAccount);
+            menuRemoveAccountFromManifest.Enabled = managesVault && localAccount;
+            menuDeactivateAuthenticator.Enabled = managesVault && localAccount;
 
-            btnTradeConfirmations.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("ViewConfirmations", currentAccount);
-            menuTerminateSessions.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("TerminateSessions", currentAccount);
+            btnTradeConfirmations.Enabled = localAccount && DesktopDeviceAccess.Permits("ViewConfirmations", currentAccount);
+            menuTerminateSessions.Enabled = localAccount && DesktopDeviceAccess.Permits("TerminateSessions", currentAccount);
             btnQuickTerminate.Enabled = menuTerminateSessions.Enabled;
+            btnQuickLoginAgain.Enabled = localAccount;
+            btnFavoriteAccount.Enabled = localAccount;
             btnCopy.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("ViewGuardCode", currentAccount);
             btnScanQrLogin.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("ApproveSteamQr", currentAccount);
         }
@@ -1866,6 +2037,7 @@ namespace Steam_Desktop_Authenticator
         private void loadAccountsList()
         {
             string preferredAccountName = currentAccount?.AccountName;
+            ResetRemoteGuardCodeRequest();
             currentAccount = null;
 
             listAccounts.Items.Clear();
@@ -1874,7 +2046,10 @@ namespace Steam_Desktop_Authenticator
             trayAccountList.Items.Clear();
             trayAccountList.SelectedIndex = -1;
 
-            allAccounts = DesktopDeviceAccess.FilterAccounts(manifest.GetAllAccounts(passKey));
+            allAccounts = DesktopDeviceAccess.BuildVisibleAccounts(
+                manifest.GetAllAccounts(passKey),
+                remoteAccountSteamIds,
+                steamId => Localizer.Choose($"Remote account {steamId}", $"Удалённый аккаунт {steamId}"));
 
             if (allAccounts.Length > 0)
             {
@@ -2047,7 +2222,7 @@ namespace Steam_Desktop_Authenticator
 
         private void ToggleCurrentAccountFavorite()
         {
-            if (currentAccount == null)
+            if (currentAccount == null || IsRemoteAccount(currentAccount))
             {
                 return;
             }
@@ -2078,6 +2253,23 @@ namespace Steam_Desktop_Authenticator
             }
 
             lblAccountName.Text = currentAccount.AccountName;
+            if (IsRemoteAccount(currentAccount))
+            {
+                lblSessionBadge.Visible = true;
+                lblSessionBadge.Text = Localizer.Choose("Remote", "Удалённый");
+                lblSessionBadge.BackColor = Branding.AccentSoft;
+                lblSessionBadge.ForeColor = Branding.AccentDark;
+                lblSessionDetails.Text = Localizer.Choose(
+                    "No maFile is stored here. Guard codes and QR approvals are requested securely from an Admin device.",
+                    "На этом устройстве нет maFile. Guard-коды и QR-подтверждения безопасно запрашиваются у Admin-устройства.");
+                btnFavoriteAccount.Text = Localizer.Choose("Remote", "Удалённый");
+                btnQuickLoginAgain.Enabled = false;
+                btnQuickTerminate.Enabled = false;
+                btnFavoriteAccount.Enabled = false;
+                btnTradeConfirmations.Enabled = false;
+                return;
+            }
+
             btnFavoriteAccount.Text = manifest.IsFavorite(currentAccount.Session.SteamID) ? "Pinned" : "Pin";
             bool hasStoredCredentials = storedCredentialLoginService.HasStoredCredentials(currentAccount.Session?.SteamID ?? 0, currentAccount.AccountName);
             bool isExpired = currentAccount.Session == null || currentAccount.Session.IsAccessTokenExpired() || currentAccount.Session.IsRefreshTokenExpired();
