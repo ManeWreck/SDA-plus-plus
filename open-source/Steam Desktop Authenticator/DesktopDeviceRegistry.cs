@@ -551,6 +551,12 @@ namespace Steam_Desktop_Authenticator
             return actionId;
         }
 
+        public Task<string> RequestGuardCodeAsync(
+            DesktopRegistrySettings settings,
+            string steamId,
+            CancellationToken token) =>
+            RequestRemoteActionAsync(settings, "ViewGuardCode", GuardCodeRemoteActionCodec.Request(steamId), token);
+
         public async Task<IReadOnlyList<DesktopRemoteActionRequest>> PendingRemoteActionsAsync(
             DesktopRegistrySettings settings,
             CancellationToken token)
@@ -571,55 +577,67 @@ namespace Steam_Desktop_Authenticator
             List<DesktopRemoteActionRequest> result = new List<DesktopRemoteActionRequest>();
             foreach (JObject action in response["actions"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
             {
-                string requestedBy = action.Value<string>("requestedBy") ?? string.Empty;
-                string requesterPublicKey = action.Value<string>("requesterPublicKey") ?? string.Empty;
-                string requesterEncryptionPublicKey = action.Value<string>("requesterEncryptionPublicKey") ?? string.Empty;
-                string requesterEncryptionKeySignature = action.Value<string>("requesterEncryptionKeySignature") ?? string.Empty;
-                string requesterRole = action.Value<string>("requesterRole") ?? string.Empty;
-                string requesterGrantFingerprint = action.Value<string>("requesterGrantFingerprint") ?? string.Empty;
-                if (!DeviceIdentityStore.VerifyEncryptionKeyBinding(
-                    requestedBy,
-                    requesterPublicKey,
-                    requesterEncryptionPublicKey,
-                    requesterEncryptionKeySignature))
-                    throw new CryptographicException("Remote action device identity is invalid.");
-                string actionId = action.Value<string>("actionId") ?? string.Empty;
-                byte[] decrypted = DeviceIdentityStore.DecryptRemoteAction(
-                    action.Value<string>("requestEnvelope"),
-                    settings.VaultId,
-                    actionId,
-                    "request");
-                JObject authorizedPayload;
-                try { authorizedPayload = JObject.Parse(Encoding.UTF8.GetString(decrypted)); }
-                finally { CryptographicOperations.ZeroMemory(decrypted); }
-                byte[] authorizationBytes = Base64UrlDecode(authorizedPayload.Value<string>("authorization") ?? string.Empty);
-                RemoteActionAuthorization authorization = RemoteActionAuthorizationCodec.Parse(authorizationBytes);
-                string issuerPublicKey = authorizedPayload.Value<string>("issuerPublicKey") ?? string.Empty;
-                activeAdmins.TryGetValue(authorization.IssuerDeviceId, out DesktopRegistryDevice issuer);
-                if (RemoteActionAuthorizationCodec.Fingerprint(authorizationBytes) != requesterGrantFingerprint ||
-                    authorization.VaultId != settings.VaultId || authorization.Role != requesterRole ||
-                    !authorization.Capabilities.Contains(action.Value<string>("kind") ?? string.Empty) ||
-                    (authorization.ExpiresAt != null && authorization.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) ||
-                    issuer?.PublicKey != issuerPublicKey)
-                    throw new CryptographicException("Remote action grant is invalid or expired.");
-                if (!DeviceIdentityStore.Verify(
-                    issuerPublicKey,
-                    authorizationBytes,
-                    authorizedPayload.Value<string>("authorizationSignature") ?? string.Empty))
-                    throw new CryptographicException("Remote action authorization signature is invalid.");
-                result.Add(new DesktopRemoteActionRequest
+                try
                 {
-                    ActionId = actionId,
-                    RequestedBy = requestedBy,
-                    Kind = action.Value<string>("kind") ?? string.Empty,
-                    Payload = Base64UrlDecode(authorizedPayload.Value<string>("payload") ?? string.Empty),
-                    CreatedAt = action.Value<long>("createdAt"),
-                    ExpiresAt = action.Value<long>("expiresAt"),
-                    RequesterPublicKey = requesterPublicKey,
-                    RequesterEncryptionPublicKey = requesterEncryptionPublicKey,
-                    RequesterEncryptionKeySignature = requesterEncryptionKeySignature,
-                    Authorization = authorization
-                });
+                    string requestedBy = action.Value<string>("requestedBy") ?? string.Empty;
+                    string requesterPublicKey = action.Value<string>("requesterPublicKey") ?? string.Empty;
+                    string requesterEncryptionPublicKey = action.Value<string>("requesterEncryptionPublicKey") ?? string.Empty;
+                    string requesterEncryptionKeySignature = action.Value<string>("requesterEncryptionKeySignature") ?? string.Empty;
+                    string requesterRole = action.Value<string>("requesterRole") ?? string.Empty;
+                    string requesterGrantFingerprint = action.Value<string>("requesterGrantFingerprint") ?? string.Empty;
+                    if (!DeviceIdentityStore.VerifyEncryptionKeyBinding(
+                        requestedBy,
+                        requesterPublicKey,
+                        requesterEncryptionPublicKey,
+                        requesterEncryptionKeySignature))
+                        throw new CryptographicException("Remote action device identity is invalid.");
+                    string actionId = action.Value<string>("actionId") ?? string.Empty;
+                    byte[] decrypted = DeviceIdentityStore.DecryptRemoteAction(
+                        action.Value<string>("requestEnvelope"),
+                        settings.VaultId,
+                        actionId,
+                        "request");
+                    JObject authorizedPayload;
+                    try { authorizedPayload = JObject.Parse(Encoding.UTF8.GetString(decrypted)); }
+                    finally { CryptographicOperations.ZeroMemory(decrypted); }
+                    byte[] authorizationBytes = Base64UrlDecode(authorizedPayload.Value<string>("authorization") ?? string.Empty);
+                    RemoteActionAuthorization authorization = RemoteActionAuthorizationCodec.Parse(authorizationBytes);
+                    string issuerPublicKey = authorizedPayload.Value<string>("issuerPublicKey") ?? string.Empty;
+                    activeAdmins.TryGetValue(authorization.IssuerDeviceId, out DesktopRegistryDevice issuer);
+                    if (RemoteActionAuthorizationCodec.Fingerprint(authorizationBytes) != requesterGrantFingerprint ||
+                        authorization.VaultId != settings.VaultId || authorization.Role != requesterRole ||
+                        !authorization.Capabilities.Contains(action.Value<string>("kind") ?? string.Empty) ||
+                        (authorization.ExpiresAt != null && authorization.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) ||
+                        issuer?.PublicKey != issuerPublicKey)
+                        throw new CryptographicException("Remote action grant is invalid or expired.");
+                    if (!DeviceIdentityStore.Verify(
+                        issuerPublicKey,
+                        authorizationBytes,
+                        authorizedPayload.Value<string>("authorizationSignature") ?? string.Empty))
+                        throw new CryptographicException("Remote action authorization signature is invalid.");
+                    result.Add(new DesktopRemoteActionRequest
+                    {
+                        ActionId = actionId,
+                        RequestedBy = requestedBy,
+                        Kind = action.Value<string>("kind") ?? string.Empty,
+                        Payload = Base64UrlDecode(authorizedPayload.Value<string>("payload") ?? string.Empty),
+                        CreatedAt = action.Value<long>("createdAt"),
+                        ExpiresAt = action.Value<long>("expiresAt"),
+                        RequesterPublicKey = requesterPublicKey,
+                        RequesterEncryptionPublicKey = requesterEncryptionPublicKey,
+                        RequesterEncryptionKeySignature = requesterEncryptionKeySignature,
+                        Authorization = authorization
+                    });
+                }
+                catch (Exception ex) when (
+                    ex is JsonException ||
+                    ex is FormatException ||
+                    ex is ArgumentException ||
+                    ex is CryptographicException ||
+                    ex is InvalidOperationException)
+                {
+                    // One malformed or forged request must not block other devices' valid actions.
+                }
             }
             return result;
         }
@@ -681,6 +699,21 @@ namespace Steam_Desktop_Authenticator
                     "response"),
                 ExpiresAt = response.Value<long>("expiresAt")
             };
+        }
+
+        public async Task<GuardCodeRemoteResponse> ConsumeGuardCodeResultAsync(
+            DesktopRegistrySettings settings,
+            string actionId,
+            CancellationToken token)
+        {
+            DesktopRemoteActionResult result = await GetRemoteActionResultAsync(settings, actionId, token);
+            if (result.Kind != "ViewGuardCode") throw new InvalidOperationException("Unexpected remote action response.");
+            if (result.ResponsePayload == null) return null;
+            GuardCodeRemoteResponse response = GuardCodeRemoteActionCodec.ParseResponse(result.ResponsePayload);
+            if (response.SteamId != null && !settings.GrantedAccountSteamIds.Contains(response.SteamId))
+                throw new CryptographicException("Remote Guard code account is not granted.");
+            await AcknowledgeRemoteActionAsync(settings, actionId, token);
+            return response;
         }
 
         public Task AcknowledgeRemoteActionAsync(DesktopRegistrySettings settings, string actionId, CancellationToken token) =>

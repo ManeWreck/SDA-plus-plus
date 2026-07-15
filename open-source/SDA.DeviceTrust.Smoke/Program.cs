@@ -45,6 +45,33 @@ bool authorizationFixtureMatches = Encoding.UTF8.GetString(authorizationCanonica
     "\"role\":\"TrustedOnline\",\"issuedAt\":1700000000000,\"expiresAt\":null," +
     "\"accountSteamIds\":[\"76561198000000001\",\"76561198000000002\"]," +
     "\"capabilities\":[\"ApproveSteamQr\",\"ViewGuardCode\"]}";
+Type guardResponseType = application.GetType(
+    "Steam_Desktop_Authenticator.GuardCodeRemoteResponse",
+    throwOnError: true)!;
+Type guardCodec = application.GetType(
+    "Steam_Desktop_Authenticator.GuardCodeRemoteActionCodec",
+    throwOnError: true)!;
+byte[] guardRequest = (byte[])guardCodec.GetMethod(
+    "Request",
+    BindingFlags.Public | BindingFlags.Static)!.Invoke(null, new object[] { "76561198000000001" })!;
+object guardResponse = Activator.CreateInstance(guardResponseType)!;
+guardResponseType.GetProperty("Success")!.SetValue(guardResponse, true);
+guardResponseType.GetProperty("SteamId")!.SetValue(guardResponse, "76561198000000001");
+guardResponseType.GetProperty("Code")!.SetValue(guardResponse, "2BCDF");
+guardResponseType.GetProperty("GeneratedAt")!.SetValue(guardResponse, 1_700_000_000_000L);
+guardResponseType.GetProperty("ValidUntil")!.SetValue(guardResponse, 1_700_000_010_000L);
+byte[] guardResponsePayload = (byte[])guardCodec.GetMethod(
+    "Response",
+    BindingFlags.Public | BindingFlags.Static)!.Invoke(null, new[] { guardResponse })!;
+bool guardCodeFixtureMatches =
+    Encoding.UTF8.GetString(guardRequest) == "{\"version\":1,\"steamId\":\"76561198000000001\"}" &&
+    (string)guardCodec.GetMethod("ParseRequest", BindingFlags.Public | BindingFlags.Static)!
+        .Invoke(null, new object[] { guardRequest })! == "76561198000000001" &&
+    guardCodec.GetMethod("ParseResponse", BindingFlags.Public | BindingFlags.Static)!
+        .Invoke(null, new object[] { guardResponsePayload }) != null &&
+    Encoding.UTF8.GetString(guardResponsePayload) ==
+        "{\"version\":1,\"success\":true,\"steamId\":\"76561198000000001\"," +
+        "\"code\":\"2BCDF\",\"generatedAt\":1700000000000,\"validUntil\":1700000010000,\"error\":null}";
 
 object first = getInfo.Invoke(null, null)!;
 object second = getInfo.Invoke(null, null)!;
@@ -107,7 +134,8 @@ Console.WriteLine($"RemoteActionRoundTrip={actionPayload.SequenceEqual(decrypted
 Console.WriteLine($"RemoteActionContextFixtureMatches={actionContextFixtureMatches}");
 Console.WriteLine($"RemoteActionContextTamperRejected={actionContextTamperRejected}");
 Console.WriteLine($"RemoteActionAuthorizationFixtureMatches={authorizationFixtureMatches}");
+Console.WriteLine($"GuardCodeRemotePayloadFixtureMatches={guardCodeFixtureMatches}");
 
 return firstId == secondId && valid && !tampered && encryptionBindingValid && !encryptionBindingTampered &&
     actionPayload.SequenceEqual(decryptedAction) && actionContextFixtureMatches && actionContextTamperRejected &&
-    authorizationFixtureMatches ? 0 : 1;
+    authorizationFixtureMatches && guardCodeFixtureMatches ? 0 : 1;

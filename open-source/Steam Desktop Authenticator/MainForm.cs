@@ -1647,6 +1647,7 @@ namespace Steam_Desktop_Authenticator
 
                 if (registry.Role == "Admin")
                 {
+                    await ProcessAdminRemoteActionsAsync(client, registry);
                     IReadOnlyList<DesktopRegistryAuditEvent> events = await client.ListAuditAsync(registry, CancellationToken.None);
                     DesktopRegistryAuditEvent newest = events.FirstOrDefault();
                     if (newest != null)
@@ -1702,6 +1703,68 @@ namespace Steam_Desktop_Authenticator
             }
             finally { deviceTrustCheckInProgress = false; }
         }
+
+        private async Task ProcessAdminRemoteActionsAsync(
+            DesktopDeviceRegistryClient client,
+            DesktopRegistrySettings registry)
+        {
+            IReadOnlyList<DesktopRemoteActionRequest> actions =
+                await client.PendingRemoteActionsAsync(registry, CancellationToken.None);
+            foreach (DesktopRemoteActionRequest action in actions.Where(value => value.Kind == "ViewGuardCode"))
+            {
+                GuardCodeRemoteResponse response = await BuildGuardCodeRemoteResponseAsync(action);
+                try
+                {
+                    await client.RespondRemoteActionAsync(
+                        registry,
+                        action,
+                        GuardCodeRemoteActionCodec.Response(response),
+                        CancellationToken.None);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Another active Admin may have answered this one-time request first.
+                }
+            }
+        }
+
+        private async Task<GuardCodeRemoteResponse> BuildGuardCodeRemoteResponseAsync(
+            DesktopRemoteActionRequest action)
+        {
+            string steamId;
+            try { steamId = GuardCodeRemoteActionCodec.ParseRequest(action.Payload); }
+            catch { return FailedGuardCodeResponse(null, "InvalidRequest"); }
+            if (!action.Authorization.Capabilities.Contains("ViewGuardCode") ||
+                !action.Authorization.AccountSteamIds.Contains(steamId))
+                return FailedGuardCodeResponse(steamId, "AccountNotGranted");
+            SteamGuardAccount account = (allAccounts ?? Array.Empty<SteamGuardAccount>())
+                .FirstOrDefault(value => value?.Session?.SteamID.ToString() == steamId);
+            if (account == null) return FailedGuardCodeResponse(steamId, "AccountUnavailable");
+            try
+            {
+                long alignedTime = await TimeAligner.GetSteamTimeAsync();
+                return new GuardCodeRemoteResponse
+                {
+                    Success = true,
+                    SteamId = steamId,
+                    Code = account.GenerateSteamGuardCodeForTime(alignedTime),
+                    GeneratedAt = alignedTime * 1000L,
+                    ValidUntil = ((alignedTime / 30L) + 1L) * 30_000L
+                };
+            }
+            catch
+            {
+                return FailedGuardCodeResponse(steamId, "GenerationFailed");
+            }
+        }
+
+        private static GuardCodeRemoteResponse FailedGuardCodeResponse(string steamId, string error) =>
+            new GuardCodeRemoteResponse
+            {
+                Success = false,
+                SteamId = steamId,
+                Error = error
+            };
 
         private void WipeGrantedDeviceData()
         {
