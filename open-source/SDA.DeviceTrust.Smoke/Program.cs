@@ -72,6 +72,40 @@ bool guardCodeFixtureMatches =
     Encoding.UTF8.GetString(guardResponsePayload) ==
         "{\"version\":1,\"success\":true,\"steamId\":\"76561198000000001\"," +
         "\"code\":\"2BCDF\",\"generatedAt\":1700000000000,\"validUntil\":1700000010000,\"error\":null}";
+Type qrRequestType = application.GetType(
+    "Steam_Desktop_Authenticator.SteamQrRemoteRequest",
+    throwOnError: true)!;
+Type qrResponseType = application.GetType(
+    "Steam_Desktop_Authenticator.SteamQrRemoteResponse",
+    throwOnError: true)!;
+Type qrCodec = application.GetType(
+    "Steam_Desktop_Authenticator.SteamQrRemoteActionCodec",
+    throwOnError: true)!;
+const string qrUrl = "https://s.team/q/1/1234567890123456789";
+byte[] qrRequest = (byte[])qrCodec.GetMethod(
+    "Request",
+    BindingFlags.Public | BindingFlags.Static)!.Invoke(
+        null,
+        new object[] { "76561198000000001", qrUrl })!;
+object parsedQrRequest = qrCodec.GetMethod(
+    "ParseRequest",
+    BindingFlags.Public | BindingFlags.Static)!.Invoke(null, new object[] { qrRequest })!;
+object qrResponse = Activator.CreateInstance(qrResponseType)!;
+qrResponseType.GetProperty("Success")!.SetValue(qrResponse, true);
+qrResponseType.GetProperty("SteamId")!.SetValue(qrResponse, "76561198000000001");
+byte[] qrResponsePayload = (byte[])qrCodec.GetMethod(
+    "Response",
+    BindingFlags.Public | BindingFlags.Static)!.Invoke(null, new[] { qrResponse })!;
+bool steamQrFixtureMatches =
+    Encoding.UTF8.GetString(qrRequest) ==
+        "{\"version\":1,\"steamId\":\"76561198000000001\"," +
+        "\"qrPayload\":\"https://s.team/q/1/1234567890123456789\"}" &&
+    (string)qrRequestType.GetProperty("SteamId")!.GetValue(parsedQrRequest)! == "76561198000000001" &&
+    (string)qrRequestType.GetProperty("QrPayload")!.GetValue(parsedQrRequest)! == qrUrl &&
+    qrCodec.GetMethod("ParseResponse", BindingFlags.Public | BindingFlags.Static)!
+        .Invoke(null, new object[] { qrResponsePayload }) != null &&
+    Encoding.UTF8.GetString(qrResponsePayload) ==
+        "{\"version\":1,\"success\":true,\"steamId\":\"76561198000000001\",\"error\":null}";
 
 object first = getInfo.Invoke(null, null)!;
 object second = getInfo.Invoke(null, null)!;
@@ -135,7 +169,8 @@ Console.WriteLine($"RemoteActionContextFixtureMatches={actionContextFixtureMatch
 Console.WriteLine($"RemoteActionContextTamperRejected={actionContextTamperRejected}");
 Console.WriteLine($"RemoteActionAuthorizationFixtureMatches={authorizationFixtureMatches}");
 Console.WriteLine($"GuardCodeRemotePayloadFixtureMatches={guardCodeFixtureMatches}");
+Console.WriteLine($"SteamQrRemotePayloadFixtureMatches={steamQrFixtureMatches}");
 
 return firstId == secondId && valid && !tampered && encryptionBindingValid && !encryptionBindingTampered &&
     actionPayload.SequenceEqual(decryptedAction) && actionContextFixtureMatches && actionContextTamperRejected &&
-    authorizationFixtureMatches && guardCodeFixtureMatches ? 0 : 1;
+    authorizationFixtureMatches && guardCodeFixtureMatches && steamQrFixtureMatches ? 0 : 1;

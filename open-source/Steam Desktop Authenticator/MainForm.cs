@@ -1710,15 +1710,18 @@ namespace Steam_Desktop_Authenticator
         {
             IReadOnlyList<DesktopRemoteActionRequest> actions =
                 await client.PendingRemoteActionsAsync(registry, CancellationToken.None);
-            foreach (DesktopRemoteActionRequest action in actions.Where(value => value.Kind == "ViewGuardCode"))
+            foreach (DesktopRemoteActionRequest action in actions.Where(value =>
+                value.Kind == "ViewGuardCode" || value.Kind == "ApproveSteamQr"))
             {
-                GuardCodeRemoteResponse response = await BuildGuardCodeRemoteResponseAsync(action);
+                byte[] responsePayload = action.Kind == "ViewGuardCode"
+                    ? GuardCodeRemoteActionCodec.Response(await BuildGuardCodeRemoteResponseAsync(action))
+                    : SteamQrRemoteActionCodec.Response(await BuildSteamQrRemoteResponseAsync(action));
                 try
                 {
                     await client.RespondRemoteActionAsync(
                         registry,
                         action,
-                        GuardCodeRemoteActionCodec.Response(response),
+                        responsePayload,
                         CancellationToken.None);
                 }
                 catch (InvalidOperationException)
@@ -1760,6 +1763,41 @@ namespace Steam_Desktop_Authenticator
 
         private static GuardCodeRemoteResponse FailedGuardCodeResponse(string steamId, string error) =>
             new GuardCodeRemoteResponse
+            {
+                Success = false,
+                SteamId = steamId,
+                Error = error
+            };
+
+        private async Task<SteamQrRemoteResponse> BuildSteamQrRemoteResponseAsync(
+            DesktopRemoteActionRequest action)
+        {
+            SteamQrRemoteRequest request;
+            try { request = SteamQrRemoteActionCodec.ParseRequest(action.Payload); }
+            catch { return FailedSteamQrResponse(null, "InvalidRequest"); }
+            if (!action.Authorization.Capabilities.Contains("ApproveSteamQr") ||
+                !action.Authorization.AccountSteamIds.Contains(request.SteamId))
+                return FailedSteamQrResponse(request.SteamId, "AccountNotGranted");
+            SteamGuardAccount account = (allAccounts ?? Array.Empty<SteamGuardAccount>())
+                .FirstOrDefault(value => value?.Session?.SteamID.ToString() == request.SteamId);
+            if (account == null) return FailedSteamQrResponse(request.SteamId, "AccountUnavailable");
+            try
+            {
+                await qrLoginService.HandleDecodedQrAsync(account, request.QrPayload);
+                return new SteamQrRemoteResponse
+                {
+                    Success = true,
+                    SteamId = request.SteamId
+                };
+            }
+            catch
+            {
+                return FailedSteamQrResponse(request.SteamId, "ApprovalFailed");
+            }
+        }
+
+        private static SteamQrRemoteResponse FailedSteamQrResponse(string steamId, string error) =>
+            new SteamQrRemoteResponse
             {
                 Success = false,
                 SteamId = steamId,

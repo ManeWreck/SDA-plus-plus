@@ -557,6 +557,17 @@ namespace Steam_Desktop_Authenticator
             CancellationToken token) =>
             RequestRemoteActionAsync(settings, "ViewGuardCode", GuardCodeRemoteActionCodec.Request(steamId), token);
 
+        public Task<string> RequestSteamQrApprovalAsync(
+            DesktopRegistrySettings settings,
+            string steamId,
+            string qrPayload,
+            CancellationToken token) =>
+            RequestRemoteActionAsync(
+                settings,
+                "ApproveSteamQr",
+                SteamQrRemoteActionCodec.Request(steamId, qrPayload),
+                token);
+
         public async Task<IReadOnlyList<DesktopRemoteActionRequest>> PendingRemoteActionsAsync(
             DesktopRegistrySettings settings,
             CancellationToken token)
@@ -712,6 +723,21 @@ namespace Steam_Desktop_Authenticator
             GuardCodeRemoteResponse response = GuardCodeRemoteActionCodec.ParseResponse(result.ResponsePayload);
             if (response.SteamId != null && !settings.GrantedAccountSteamIds.Contains(response.SteamId))
                 throw new CryptographicException("Remote Guard code account is not granted.");
+            await AcknowledgeRemoteActionAsync(settings, actionId, token);
+            return response;
+        }
+
+        public async Task<SteamQrRemoteResponse> ConsumeSteamQrApprovalResultAsync(
+            DesktopRegistrySettings settings,
+            string actionId,
+            CancellationToken token)
+        {
+            DesktopRemoteActionResult result = await GetRemoteActionResultAsync(settings, actionId, token);
+            if (result.Kind != "ApproveSteamQr") throw new InvalidOperationException("Unexpected remote action response.");
+            if (result.ResponsePayload == null) return null;
+            SteamQrRemoteResponse response = SteamQrRemoteActionCodec.ParseResponse(result.ResponsePayload);
+            if (response.SteamId != null && !settings.GrantedAccountSteamIds.Contains(response.SteamId))
+                throw new CryptographicException("Remote QR approval account is not granted.");
             await AcknowledgeRemoteActionAsync(settings, actionId, token);
             return response;
         }
