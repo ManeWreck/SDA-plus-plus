@@ -163,6 +163,7 @@ namespace Steam_Desktop_Authenticator
                 Account = account
             };
             ModernUi.RoundButton(acceptButton, true);
+            acceptButton.Enabled = DesktopDeviceAccess.Permits("ApproveConfirmations", account);
             acceptButton.Click += btnAccept_Click;
             panel.Controls.Add(acceptButton);
 
@@ -177,6 +178,7 @@ namespace Steam_Desktop_Authenticator
                 Account = account
             };
             ModernUi.RoundButton(cancelButton, false);
+            cancelButton.Enabled = DesktopDeviceAccess.Permits("ApproveConfirmations", account);
             cancelButton.Click += btnCancel_Click;
             panel.Controls.Add(cancelButton);
 
@@ -216,6 +218,7 @@ namespace Steam_Desktop_Authenticator
         private async void btnAccept_Click(object sender, EventArgs e)
         {
             ConfirmationButton button = (ConfirmationButton)sender;
+            if (!DesktopDeviceAccess.Permits("ApproveConfirmations", button.Account)) return;
             await button.Account.AcceptConfirmation(button.Confirmation);
             await LoadData();
         }
@@ -223,6 +226,7 @@ namespace Steam_Desktop_Authenticator
         private async void btnCancel_Click(object sender, EventArgs e)
         {
             ConfirmationButton button = (ConfirmationButton)sender;
+            if (!DesktopDeviceAccess.Permits("ApproveConfirmations", button.Account)) return;
             await button.Account.DenyConfirmation(button.Confirmation);
             await LoadData();
         }

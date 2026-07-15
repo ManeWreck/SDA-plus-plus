@@ -26,6 +26,7 @@ namespace Steam_Desktop_Authenticator
         private readonly StoredCredentialLoginService storedCredentialLoginService = new StoredCredentialLoginService();
         private readonly UpdateCheckService updateCheckService = new UpdateCheckService();
         private readonly System.Windows.Forms.Timer updateCheckTimer = new System.Windows.Forms.Timer { Interval = 6 * 60 * 60 * 1000 };
+        private readonly System.Windows.Forms.Timer deviceTrustTimer = new System.Windows.Forms.Timer { Interval = 60 * 1000 };
         private readonly HotkeyOverlayForm hotkeyOverlay = new HotkeyOverlayForm();
         private readonly Label lblAccountName = new Label();
         private readonly Label lblAccountHint = new Label();
@@ -71,6 +72,7 @@ namespace Steam_Desktop_Authenticator
         private bool startupBatchAutoLoginAttempted = false;
         private bool updateCheckInProgress = false;
         private bool updateNotificationShown = false;
+        private bool deviceTrustCheckInProgress = false;
         private string updatePageUrl = Branding.GithubUrl;
 
         // Forms
@@ -96,6 +98,7 @@ namespace Steam_Desktop_Authenticator
             menuAutoLoginAllAccounts.Click += menuAutoLoginAllAccounts_Click;
             menuAccountMonitoring.Click += menuAccountMonitoring_Click;
             updateCheckTimer.Tick += async (sender, args) => await CheckForUpdatesAsync();
+            deviceTrustTimer.Tick += async (sender, args) => await CheckDeviceTrustAsync();
             DoubleBuffered = true;
             BuildModernLayout();
             ModernUi.AttachWindowChrome(this, true, false);
@@ -547,6 +550,8 @@ namespace Steam_Desktop_Authenticator
             loadAccountsList();
 
             StartUpdateChecks();
+            deviceTrustTimer.Start();
+            _ = CheckDeviceTrustAsync();
             UpdateSelectedAccountCard();
 
             await MaybeAutoLoginAllAccountsOnStartupAsync();
@@ -576,6 +581,8 @@ namespace Steam_Desktop_Authenticator
         {
             updateCheckTimer.Stop();
             updateCheckTimer.Dispose();
+            deviceTrustTimer.Stop();
+            deviceTrustTimer.Dispose();
             UnregisterGlobalHotkeys();
             hotkeyOverlay.Close();
             Application.Exit();
@@ -586,6 +593,7 @@ namespace Steam_Desktop_Authenticator
 
         private void btnSteamLogin_Click(object sender, EventArgs e)
         {
+            if (!RequireLocalVaultManagement()) return;
             var loginForm = new LoginForm();
             loginForm.ShowDialog();
             this.loadAccountsList();
@@ -598,6 +606,11 @@ namespace Steam_Desktop_Authenticator
 
         private async Task OpenAllConfirmationsAsync()
         {
+            if (!DesktopDeviceAccess.Permits("ViewConfirmations"))
+            {
+                ShowDevicePermissionDenied();
+                return;
+            }
             SteamGuardAccount[] accounts = allAccounts ?? Array.Empty<SteamGuardAccount>();
             if (accounts.Length == 0)
             {
@@ -629,6 +642,7 @@ namespace Steam_Desktop_Authenticator
 
         private void btnManageEncryption_Click(object sender, EventArgs e)
         {
+            if (!RequireLocalVaultManagement()) return;
             if (manifest.Encrypted)
             {
                 InputForm currentPassKeyForm = new InputForm("Enter current passkey", true);
@@ -740,6 +754,7 @@ namespace Steam_Desktop_Authenticator
 
         private void menuRemoveAccountFromManifest_Click(object sender, EventArgs e)
         {
+            if (!RequireLocalVaultManagement()) return;
             if (manifest.Encrypted)
             {
                 MessageBox.Show(
@@ -778,6 +793,7 @@ namespace Steam_Desktop_Authenticator
 
         private void menuManageCredentials_Click(object sender, EventArgs e)
         {
+            if (!RequireLocalVaultManagement()) return;
             using CredentialsManagerForm form = new CredentialsManagerForm();
             form.ShowDialog(this);
             manifest = Manifest.GetManifest(true);
@@ -808,6 +824,11 @@ namespace Steam_Desktop_Authenticator
         {
             if (currentAccount == null)
             {
+                return;
+            }
+            if (!DesktopDeviceAccess.Permits("TerminateSessions", currentAccount))
+            {
+                ShowDevicePermissionDenied();
                 return;
             }
 
@@ -884,6 +905,7 @@ namespace Steam_Desktop_Authenticator
 
         private void menuImportAccount_Click(object sender, EventArgs e)
         {
+            if (!RequireLocalVaultManagement()) return;
             ImportAccountForm currentImport_maFile_Form = new ImportAccountForm();
             currentImport_maFile_Form.ShowDialog();
             loadAccountsList();
@@ -902,6 +924,7 @@ namespace Steam_Desktop_Authenticator
 
         private async void menuDeactivateAuthenticator_Click(object sender, EventArgs e)
         {
+            if (!RequireLocalVaultManagement()) return;
             if (currentAccount == null) return;
 
             if (!await EnsureAccountSessionReadyAsync(currentAccount, "Deactivate Authenticator", true))
@@ -993,10 +1016,7 @@ namespace Steam_Desktop_Authenticator
 
         private void trayCopySteamGuard_Click(object sender, EventArgs e)
         {
-            if (txtLoginToken.Text != "")
-            {
-                Clipboard.SetText(txtLoginToken.Text);
-            }
+            CopyLoginToken();
         }
 
         private void trayAccountList_SelectedIndexChanged(object sender, EventArgs e)
@@ -1021,6 +1041,7 @@ namespace Steam_Desktop_Authenticator
             trayAccountList.Text = account.AccountName;
             currentAccount = account;
             btnTradeConfirmations.Enabled = menuDeactivateAuthenticator.Enabled = menuTerminateSessions.Enabled = true;
+            ApplyDeviceRoleRestrictions();
             loadAccountInfo();
         }
 
@@ -1062,6 +1083,7 @@ namespace Steam_Desktop_Authenticator
         private async void timerTradesPopup_Tick(object sender, EventArgs e)
         {
             if (currentAccount == null || popupFrm.Visible) return;
+            if (!DesktopDeviceAccess.Permits("ViewConfirmations")) return;
             if (!confirmationsSemaphore.Wait(0))
             {
                 return; //Only one thread may access this critical section at once. Mutex is a bad choice here because it'll cause a pileup of threads.
@@ -1113,7 +1135,7 @@ namespace Steam_Desktop_Authenticator
                     popupFrm.Requests = confs.ToArray();
                     popupFrm.Popup();
                 }
-                if (autoAcceptConfirmations.Count > 0)
+                if (autoAcceptConfirmations.Count > 0 && DesktopDeviceAccess.Permits("ApproveConfirmations"))
                 {
                     foreach (var acc in autoAcceptConfirmations.Keys)
                     {
@@ -1134,6 +1156,11 @@ namespace Steam_Desktop_Authenticator
 
         private void CopyLoginToken()
         {
+            if (!DesktopDeviceAccess.Permits("ViewGuardCode", currentAccount))
+            {
+                ShowDevicePermissionDenied();
+                return;
+            }
             string text = txtLoginToken.Text;
             if (String.IsNullOrEmpty(text))
                 return;
@@ -1159,6 +1186,11 @@ namespace Steam_Desktop_Authenticator
                     ShowOverlay(Localizer.Choose("Steam QR", "Steam QR"), Localizer.Choose("Select an account first.", "Сначала выберите аккаунт."));
                 }
 
+                return;
+            }
+            if (!DesktopDeviceAccess.Permits("ApproveSteamQr", currentAccount))
+            {
+                ShowDevicePermissionDenied();
                 return;
             }
 
@@ -1543,12 +1575,132 @@ namespace Steam_Desktop_Authenticator
             if (currentAccount != null && steamTime != 0)
             {
                 popupFrm.Account = currentAccount;
-                txtLoginToken.Text = currentAccount.GenerateSteamGuardCodeForTime(steamTime);
+                txtLoginToken.Text = DesktopDeviceAccess.Permits("ViewGuardCode", currentAccount)
+                    ? currentAccount.GenerateSteamGuardCodeForTime(steamTime)
+                    : "LOCKED";
                 int elapsed = (int)(steamTime - (currentSteamChunk * 30L));
                 UpdateTimeoutBar(30 - elapsed, 30);
             }
 
             UpdateSelectedAccountCard();
+        }
+
+        private void ShowDevicePermissionDenied()
+        {
+            MessageBox.Show(
+                Localizer.Choose(
+                    "This Trusted device was not granted permission for that action.",
+                    "Этому доверенному устройству не выдано разрешение на это действие."),
+                Localizer.Choose("Device permission", "Разрешение устройства"),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+
+        private bool RequireLocalVaultManagement()
+        {
+            if (DesktopDeviceAccess.CanManageLocalVault) return true;
+            ShowDevicePermissionDenied();
+            return false;
+        }
+
+        private void ApplyDeviceRoleRestrictions()
+        {
+            bool managesVault = DesktopDeviceAccess.CanManageLocalVault;
+            btnSteamLogin.Enabled = managesVault;
+            btnManageEncryption.Enabled = managesVault && manifest != null && manifest.Entries.Count > 0;
+            menuImportAccount.Enabled = managesVault;
+            menuManageCredentials.Enabled = managesVault;
+            menuRemoveAccountFromManifest.Enabled = managesVault && currentAccount != null;
+            menuDeactivateAuthenticator.Enabled = managesVault && currentAccount != null;
+
+            btnTradeConfirmations.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("ViewConfirmations", currentAccount);
+            menuTerminateSessions.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("TerminateSessions", currentAccount);
+            btnQuickTerminate.Enabled = menuTerminateSessions.Enabled;
+            btnCopy.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("ViewGuardCode", currentAccount);
+            btnScanQrLogin.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("ApproveQr", currentAccount);
+        }
+
+        private async Task CheckDeviceTrustAsync()
+        {
+            if (deviceTrustCheckInProgress) return;
+            DesktopRegistrySettings registry = DesktopRegistrySettingsStore.Load();
+            if (string.IsNullOrWhiteSpace(registry.VaultId)) return;
+            deviceTrustCheckInProgress = true;
+            try
+            {
+                DesktopDeviceRegistryClient client = new DesktopDeviceRegistryClient();
+                try
+                {
+                    await client.HeartbeatAsync(registry, CancellationToken.None);
+                    registry.LastSuccessfulHeartbeatAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    DesktopRegistrySettingsStore.Save(registry);
+                }
+                catch (Exception ex)
+                {
+                    long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    bool offlineExpired = registry.OfflineWipeAfterHours != null && registry.LastSuccessfulHeartbeatAt != null &&
+                        now - registry.LastSuccessfulHeartbeatAt >= TimeSpan.FromHours(registry.OfflineWipeAfterHours.Value).TotalMilliseconds;
+                    if (ex.Message.Contains("Device is not active", StringComparison.OrdinalIgnoreCase) || offlineExpired)
+                        WipeGrantedDeviceData();
+                    return;
+                }
+
+                if (registry.Role == "Admin") return;
+                IReadOnlyList<DesktopRegistryCommand> commands = await client.PendingCommandsAsync(registry, CancellationToken.None);
+                foreach (DesktopRegistryCommand command in commands.OrderBy(value => value.ExpiresAt))
+                {
+                    if (command.Type == "Lock")
+                    {
+                        bool locked = manifest.Encrypted;
+                        if (locked)
+                        {
+                            passKey = null;
+                            loadAccountsList();
+                        }
+                        await client.AcknowledgeCommandAsync(registry, command.CommandId, locked, CancellationToken.None);
+                    }
+                    else if (command.Type == "TerminateSteamSessions")
+                    {
+                        bool succeeded = true;
+                        SteamGuardAccount[] targets = allAccounts ?? Array.Empty<SteamGuardAccount>();
+                        foreach (SteamGuardAccount account in targets)
+                        {
+                            try { await qrLoginService.TerminateAllSessionsAsync(account); }
+                            catch { succeeded = false; }
+                        }
+                        await client.AcknowledgeCommandAsync(registry, command.CommandId, targets.Length > 0 && succeeded, CancellationToken.None);
+                    }
+                    else if (command.Type == "WipeLocalData")
+                    {
+                        await client.AcknowledgeCommandAsync(registry, command.CommandId, true, CancellationToken.None);
+                        WipeGrantedDeviceData();
+                        return;
+                    }
+                }
+            }
+            catch
+            {
+                // Background trust checks must not interrupt normal UI work.
+            }
+            finally { deviceTrustCheckInProgress = false; }
+        }
+
+        private void WipeGrantedDeviceData()
+        {
+            DesktopRegistrySettings registry = DesktopRegistrySettingsStore.Load();
+            HashSet<ulong> grantedIds = registry.GrantedAccountSteamIds
+                .Select(value => ulong.TryParse(value, out ulong id) ? id : 0)
+                .Where(value => value != 0)
+                .ToHashSet();
+            foreach (Manifest.ManifestEntry entry in manifest.Entries.Where(value => grantedIds.Contains(value.SteamID)).ToArray())
+            {
+                manifest.RemoveAccount(new SteamGuardAccount { Session = new SessionData { SteamID = entry.SteamID } }, true);
+            }
+            DesktopRegistrySettingsStore.Clear();
+            loadAccountsList();
+            ShowOverlay(
+                Localizer.Choose("Trusted device", "Доверенное устройство"),
+                Localizer.Choose("Granted local account data was removed.", "Выданные локальные данные аккаунтов удалены."));
         }
 
         /// <summary>
@@ -1565,7 +1717,7 @@ namespace Steam_Desktop_Authenticator
             trayAccountList.Items.Clear();
             trayAccountList.SelectedIndex = -1;
 
-            allAccounts = manifest.GetAllAccounts(passKey);
+            allAccounts = DesktopDeviceAccess.FilterAccounts(manifest.GetAllAccounts(passKey));
 
             if (allAccounts.Length > 0)
             {
@@ -1577,6 +1729,7 @@ namespace Steam_Desktop_Authenticator
             }
 
             menuDeactivateAuthenticator.Enabled = btnTradeConfirmations.Enabled = menuTerminateSessions.Enabled = allAccounts.Length > 0;
+            ApplyDeviceRoleRestrictions();
         }
 
         private void listAccounts_KeyDown(object sender, KeyEventArgs e)
@@ -1680,6 +1833,7 @@ namespace Steam_Desktop_Authenticator
             bool hasSelectedAccount = listAccounts.SelectedIndex >= 0;
             btnTradeConfirmations.Enabled = menuDeactivateAuthenticator.Enabled = menuTerminateSessions.Enabled = hasSelectedAccount;
             btnQuickLoginAgain.Enabled = btnQuickTerminate.Enabled = btnFavoriteAccount.Enabled = hasSelectedAccount;
+            ApplyDeviceRoleRestrictions();
             UpdateSelectedAccountCard();
         }
 

@@ -20,9 +20,11 @@ namespace Steam_Desktop_Authenticator
         private readonly ListView devices = new ListView();
         private readonly Label status = new Label();
         private readonly Button setup = new Button();
+        private readonly Button join = new Button();
         private readonly Button add = new Button();
         private readonly Button refresh = new Button();
         private readonly Button revoke = new Button();
+        private readonly Button wipe = new Button();
         private readonly Button lockdown = new Button();
         private DesktopRegistrySettings settings;
 
@@ -47,16 +49,20 @@ namespace Steam_Desktop_Authenticator
             devices.Columns.Add(Localizer.Choose("Role", "Роль"), 120);
             devices.Columns.Add(Localizer.Choose("Last seen", "Последняя связь"), 160);
             setup = MakeButton(Localizer.Choose("Create Admin registry", "Создать Admin-реестр"), 20, 410, 180, true);
+            join = MakeButton(Localizer.Choose("Join by QR", "Подключить по QR"), 210, 410, 150, false);
             add = MakeButton(Localizer.Choose("Add device", "Добавить устройство"), 20, 410, 120, true);
             refresh = MakeButton(Localizer.Choose("Refresh", "Обновить"), 150, 410, 100, false);
-            revoke = MakeButton(Localizer.Choose("Revoke", "Отозвать"), 260, 410, 100, false);
-            lockdown = MakeButton(Localizer.Choose("Emergency lockdown", "Аварийный отзыв"), 370, 410, 230, false);
+            revoke = MakeButton(Localizer.Choose("Revoke", "Отозвать"), 260, 410, 90, false);
+            wipe = MakeButton(Localizer.Choose("Wipe", "Очистить"), 360, 410, 90, false);
+            lockdown = MakeButton(Localizer.Choose("Lockdown", "Аварийно"), 460, 410, 140, false);
             setup.Click += async (_, __) => await SetupAsync();
+            join.Click += async (_, __) => await JoinAsync();
             add.Click += (_, __) => new DeviceInvitationForm(settings).ShowDialog(this);
             refresh.Click += async (_, __) => await RefreshAsync();
             revoke.Click += async (_, __) => await RevokeAsync();
+            wipe.Click += async (_, __) => await WipeAsync();
             lockdown.Click += async (_, __) => await LockdownAsync();
-            Controls.AddRange(new Control[] { status, devices, setup, add, refresh, revoke, lockdown });
+            Controls.AddRange(new Control[] { status, devices, setup, join, add, refresh, revoke, wipe, lockdown });
             Paint += ModernUi.PaintGlassBackground;
             Shown += async (_, __) => await LoadAsync();
         }
@@ -73,7 +79,8 @@ namespace Steam_Desktop_Authenticator
             settings = DesktopRegistrySettingsStore.Load();
             bool configured = !string.IsNullOrWhiteSpace(settings.VaultId);
             setup.Visible = !configured;
-            add.Visible = refresh.Visible = revoke.Visible = lockdown.Visible = configured && settings.Role == "Admin";
+            join.Visible = !configured;
+            add.Visible = refresh.Visible = revoke.Visible = wipe.Visible = lockdown.Visible = configured && settings.Role == "Admin";
             devices.Visible = configured;
             status.Text = configured
                 ? Localizer.Choose("Signed Admin registry is active on this PC.", "Подписанный Admin-реестр активен на этом ПК.")
@@ -92,6 +99,33 @@ namespace Steam_Desktop_Authenticator
                 await LoadAsync();
             }
             catch (Exception ex) { MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            finally { SetBusy(false); }
+        }
+
+        private async Task JoinAsync()
+        {
+            try
+            {
+                SetBusy(true);
+                Hide();
+                await Task.Delay(250);
+                Manifest manifest = Manifest.GetManifest();
+                string payload = new SteamQrLoginService().CaptureAndDecodeSteamQr(manifest.QrCaptureMode, manifest.QrCursorScanSize);
+                Show();
+                Activate();
+                using InputForm code = new InputForm(Localizer.Choose(
+                    "Enter the 6-digit device verification code shown by the Admin device.",
+                    "Введите 6-значный код устройства, показанный на Admin-устройстве."));
+                code.ShowDialog(this);
+                if (code.Canceled) return;
+                settings = await client.ClaimInvitationAsync(payload, code.txtBox.Text, CancellationToken.None);
+                await LoadAsync();
+            }
+            catch (Exception ex)
+            {
+                if (!Visible) Show();
+                MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
             finally { SetBusy(false); }
         }
 
@@ -131,7 +165,15 @@ namespace Steam_Desktop_Authenticator
             await RefreshAsync();
         }
 
-        private void SetBusy(bool busy) => setup.Enabled = add.Enabled = refresh.Enabled = revoke.Enabled = lockdown.Enabled = !busy;
+        private async Task WipeAsync()
+        {
+            if (devices.SelectedItems.Count == 0 || devices.SelectedItems[0].Tag is not DesktopRegistryDevice target) return;
+            if (MessageBox.Show(Localizer.Choose("Queue local data removal on this device?", "Поставить в очередь удаление локальных данных на этом устройстве?"), Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
+            await client.IssueCommandAsync(settings, target.DeviceId, "WipeLocalData", CancellationToken.None);
+            MessageBox.Show(Localizer.Choose("Wipe command queued.", "Команда очистки поставлена в очередь."), Text);
+        }
+
+        private void SetBusy(bool busy) => setup.Enabled = join.Enabled = add.Enabled = refresh.Enabled = revoke.Enabled = wipe.Enabled = lockdown.Enabled = !busy;
     }
 
     internal sealed class DeviceInvitationForm : Form
@@ -164,6 +206,13 @@ namespace Steam_Desktop_Authenticator
             create.Click += async (_, __) =>
             {
                 if (create.Tag as string == "close") Close();
+                else if (create.Tag as string == "show-code")
+                {
+                    qr.Visible = false;
+                    hint.Text = Localizer.Choose("Verification code", "Код подтверждения") + ": " + create.AccessibleDescription;
+                    create.Text = Localizer.Choose("Close", "Закрыть");
+                    create.Tag = "close";
+                }
                 else await CreateAsync(create);
             };
             qr.SetBounds(55, 112, 280, 280);
@@ -190,8 +239,9 @@ namespace Steam_Desktop_Authenticator
                 qr.Image = CreateQrBitmap(invitation.QrPayload, 280, 280);
                 qr.Visible = true;
                 hint.Text = Localizer.Choose("Scan in SDA++ Mobile. This QR expires in five minutes and works once.", "Отсканируйте в SDA++ Mobile. QR действует пять минут и только один раз.");
-                button.Text = Localizer.Choose("Close", "Закрыть");
-                button.Tag = "close";
+                button.Text = Localizer.Choose("Show verification code", "Показать код подтверждения");
+                button.AccessibleDescription = invitation.VerificationCode;
+                button.Tag = "show-code";
                 button.Enabled = true;
             }
             catch (Exception ex) { button.Enabled = true; MessageBox.Show(ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error); }

@@ -31,6 +31,16 @@ namespace Steam_Desktop_Authenticator
 
         public static async Task VerifyAsync(string endpoint, CancellationToken cancellationToken)
         {
+            await VerifyCoreAsync(endpoint, cancellationToken, false);
+        }
+
+        public static async Task VerifyRegistryAsync(string endpoint, CancellationToken cancellationToken)
+        {
+            await VerifyCoreAsync(endpoint, cancellationToken, true);
+        }
+
+        private static async Task VerifyCoreAsync(string endpoint, CancellationToken cancellationToken, bool requireRegistry)
+        {
             string normalized = NormalizeEndpoint(endpoint);
             using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, normalized + "/health");
             using HttpResponseMessage response = await Client.SendAsync(request, cancellationToken);
@@ -58,7 +68,8 @@ namespace Steam_Desktop_Authenticator
                 health.ProtocolVersion < ClientProtocolVersion ||
                 health.MinimumClientProtocol > ClientProtocolVersion ||
                 health.Storage != "opaque-ciphertext-only" ||
-                health.Capabilities?.Contains("one-time-pairing", StringComparer.Ordinal) != true)
+                health.Capabilities?.Contains("one-time-pairing", StringComparer.Ordinal) != true ||
+                (requireRegistry && health.Capabilities?.Contains("device-registry-v1", StringComparer.Ordinal) != true))
             {
                 throw new InvalidOperationException(Localizer.Choose(
                     "The Worker uses an incompatible SDA++ relay protocol.",
