@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SDAPlusPlus.Desktop.Views.HotkeyOverlayWindow"
+        Width="390" Height="112"
+        SystemDecorations="None"
+        CanResize="False"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent">
+    <Border Margin="8" Padding="18,15" CornerRadius="18"
+            Background="#F0161D29" BorderBrush="#4A5D7B" BorderThickness="1">
+        <Grid ColumnDefinitions="5,*" ColumnSpacing="14">
+            <Border CornerRadius="3" Background="#6590FF" />
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="5">
+                <TextBlock x:Name="OverlayTitle" Foreground="#F4F7FF" FontSize="14" FontWeight="SemiBold" />
+                <TextBlock x:Name="OverlayMessage" Foreground="#AAB6C9" FontSize="12" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

@@ -60,6 +60,15 @@ namespace SteamAuth
             this.DeviceID = GenerateDeviceID();
         }
 
+        public static AuthenticatorLinker Resume(SteamGuardAccount account)
+        {
+            if (account == null || account.Session == null || account.Session.SteamID == 0 ||
+                string.IsNullOrWhiteSpace(account.Session.AccessToken) || string.IsNullOrWhiteSpace(account.DeviceID) ||
+                string.IsNullOrWhiteSpace(account.SharedSecret) || string.IsNullOrWhiteSpace(account.RevocationCode) || account.FullyEnrolled)
+                throw new ArgumentException("A saved pending authenticator with its original session is required.", nameof(account));
+            return new AuthenticatorLinker(account.Session) { DeviceID = account.DeviceID, LinkedAccount = account };
+        }
+
         public async Task<PhoneLinkResult> AddPhoneNumber()
         {
             if (this.phoneLinkStep == PhoneLinkStep.None)
