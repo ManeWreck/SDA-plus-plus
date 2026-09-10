@@ -1,5 +1,15 @@
 # Steam Desktop Authenticator ++
 
+## Avalonia experimental: 1.7.2
+
+Desktop development now targets Avalonia, not WinForms. This experimental build is not stable.
+
+- [Download experimental](https://github.com/ManeWreck/SDA-plus-plus/releases/tag/v1.7.2-security-experimental)
+- [Detailed testing and recovery guide (Russian)](TESTING-EXPERIMENTAL-20260910.md)
+- [Release notes and limitations](RELEASE-1.7.2-security-experimental.md)
+
+Automatic update checks are available; installation is manual. Trusted-device execution is not enabled. Use backup copies for testing.
+
 <p align="center">
   <img src="./icon.png" width="128" alt="SDA++ icon" />
 </p>

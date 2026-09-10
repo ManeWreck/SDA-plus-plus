@@ -152,6 +152,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         SourcePath = maFilesDirectory;
 
         AppPreferences preferences = _preferenceStore.Load();
+        CheckUpdatesOnStartup = preferences.CheckUpdatesOnStartup;
         _selectedLanguageIndex = (int)preferences.Language;
         _selectedThemeIndex = (int)preferences.Theme;
         _accountSearchEnabled = preferences.AccountSearchEnabled;
@@ -2968,6 +2969,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(SelectedAccountName));
         OnPropertyChanged(nameof(QrCaptureModeOptions));
         OnPropertyChanged(nameof(IsRussian));
+        OnPropertyChanged(nameof(IncomingCommandsLabel));
+        OnPropertyChanged(nameof(IncomingCommandsHelp));
+        OnPropertyChanged(nameof(UpdatesTitle));
+        OnPropertyChanged(nameof(StartupUpdatesLabel));
+        OnPropertyChanged(nameof(CheckUpdatesLabel));
+        OnPropertyChanged(nameof(OpenUpdateLabel));
+        OnPropertyChanged(nameof(UpdateHelp));
         OnPropertyChanged(nameof(SteamSessionsTitle));
         OnPropertyChanged(nameof(SteamSessionsSubtitle));
         OnPropertyChanged(nameof(RefreshSteamSessionsLabel));
@@ -3765,6 +3773,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private AppPreferences CreatePreferences() => new()
     {
+        CheckUpdatesOnStartup = CheckUpdatesOnStartup,
         Language = (AppLanguage)Math.Clamp(SelectedLanguageIndex, 0, 1),
         Theme = (ThemePreset)Math.Clamp(SelectedThemeIndex, 0, 2),
         AccountSearchEnabled = AccountSearchEnabled,

@@ -10,6 +10,47 @@ namespace SDAPlusPlus.Core.Devices;
 public sealed class DeviceRegistryClient(HttpClient httpClient, IDeviceRequestSigner signer) : IDeviceRegistryClient
 {
     private static readonly System.Text.RegularExpressions.Regex IdPattern = new("^[A-Za-z0-9_-]{22}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    public async Task<PendingDeviceCommandsResult> PendingCommandsAsync(DeviceRegistrySettings settings, CancellationToken cancellationToken = default)
+    {
+        if (!settings.IsConfigured || settings.IsExpired)
+            return new(false, [], "An active device identity is required.");
+        var (success, json, detail) = await SendAsync(settings, $"/v1/trust/{settings.VaultId}/commands", HttpMethod.Get, null, cancellationToken);
+        if (!success) return new(false, [], detail);
+        if (json?["commands"] is not JArray entries || entries.Count > 100)
+            return new(false, [], "Invalid command list.");
+        List<IncomingDeviceCommand> commands = [];
+        HashSet<string> identifiers = new(StringComparer.Ordinal);
+        foreach (var entry in entries)
+        {
+            if (entry is not JObject item || item["commandId"]?.Type != JTokenType.String ||
+                item["type"]?.Type != JTokenType.String || item["expiresAt"]?.Type != JTokenType.Integer)
+                return new(false, [], "Invalid command data.");
+            string id = item.Value<string>("commandId")!;
+            string type = item.Value<string>("type")!;
+            if (!Guid.TryParseExact(id, "D", out _) || !identifiers.Add(id) ||
+                type is not ("Lock" or "WipeLocalData" or "TerminateSteamSessions") ||
+                !long.TryParse(item["expiresAt"]!.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out long expiresAt) || expiresAt <= 0 ||
+                (item["vaultId"] is not null && item.Value<string>("vaultId") != settings.VaultId) ||
+                (item["deviceId"] is not null && item.Value<string>("deviceId") != signer.DeviceId))
+                return new(false, [], "Invalid command identity, type or expiry.");
+            // Legacy responses omit target fields; bind them to the signed request identity.
+            commands.Add(new(settings.VaultId, signer.DeviceId, id, type, expiresAt));
+        }
+        return new(true, commands);
+    }
+
+    public async Task<DeviceCommandResult> AcknowledgeCommandAsync(DeviceRegistrySettings settings, DeviceExecutionReceipt receipt, CancellationToken cancellationToken = default)
+    {
+        if (!settings.IsConfigured || settings.IsExpired || receipt.Command.VaultId != settings.VaultId ||
+            receipt.Command.DeviceId != signer.DeviceId || !Guid.TryParseExact(receipt.Command.CommandId, "D", out _) ||
+            receipt.State is not (DeviceExecutionState.Completed or DeviceExecutionState.Failed))
+            return new(false, "Only a final result for this device can be acknowledged by the legacy protocol.");
+        var (success, _, detail) = await SendAsync(settings,
+            $"/v1/trust/{settings.VaultId}/commands/{receipt.Command.CommandId}/ack", HttpMethod.Post,
+            new JObject { ["status"] = receipt.State.ToString() }, cancellationToken);
+        return new(success, detail);
+    }
     public async Task<DeviceListResult> ListDevicesAsync(
         DeviceRegistrySettings settings,
         CancellationToken cancellationToken = default)
@@ -86,6 +127,9 @@ public sealed class DeviceRegistryClient(HttpClient httpClient, IDeviceRequestSi
         IReadOnlyCollection<string> capabilities,
         CancellationToken cancellationToken = default)
     {
+        if (!settings.IsConfigured || settings.Role != "Admin" || settings.IsExpired)
+            return new DeviceInvitationResult(false, Detail: "An active Admin identity is required to invite devices.");
+
         if (role is not ("Admin" or "TrustedOnline" or "TrustedOffline" or "Temporary"))
             return new DeviceInvitationResult(false, Detail: "Invalid device role.");
 
@@ -406,20 +450,31 @@ public sealed class DeviceRegistryClient(HttpClient httpClient, IDeviceRequestSi
         relay = null;
         vaultId = inviteId = inviteToken = string.Empty;
         error = null;
-        if (!Uri.TryCreate(payload, UriKind.Absolute, out Uri? uri) || uri.Scheme != "sdapp" || uri.Host != "device-enroll")
+        if (string.IsNullOrEmpty(payload) || payload.Length > 8192 ||
+            !Uri.TryCreate(payload, UriKind.Absolute, out Uri? uri) || uri.Scheme != "sdapp" || uri.Host != "device-enroll" ||
+            !string.IsNullOrEmpty(uri.UserInfo) || !uri.IsDefaultPort ||
+            uri.AbsolutePath is not ("" or "/") || !string.IsNullOrEmpty(uri.Fragment))
         {
             error = "Invalid SDA++ device invitation.";
             return false;
         }
-        Dictionary<string, string> query = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
-            .Select(value => value.Split('=', 2))
-            .Where(value => value.Length == 2)
-            .ToDictionary(value => Uri.UnescapeDataString(value[0]), value => Uri.UnescapeDataString(value[1]), StringComparer.Ordinal);
-        if (!query.TryGetValue("relay", out string? relayText) || !Uri.TryCreate(relayText, UriKind.Absolute, out relay) ||
+        Dictionary<string, string> query = new(StringComparer.Ordinal);
+        foreach (string field in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string[] pair = field.Split('=', 2);
+            if (pair.Length != 2 || !query.TryAdd(Uri.UnescapeDataString(pair[0]), Uri.UnescapeDataString(pair[1])))
+            {
+                error = "The SDA++ device invitation contains invalid or duplicate parameters.";
+                return false;
+            }
+        }
+        if (!query.TryGetValue("v", out string? version) || version != "1" ||
+            !query.TryGetValue("relay", out string? relayText) || !Uri.TryCreate(relayText, UriKind.Absolute, out relay) ||
             relay.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(relay.Query) || !string.IsNullOrEmpty(relay.Fragment) ||
+            !string.IsNullOrEmpty(relay.UserInfo) || relay.AbsolutePath != "/" ||
             !query.TryGetValue("vault", out string? parsedVault) || !IdPattern.IsMatch(parsedVault) ||
             !query.TryGetValue("invite", out string? parsedInvite) || !IdPattern.IsMatch(parsedInvite) ||
-            !query.TryGetValue("token", out string? parsedToken) || string.IsNullOrWhiteSpace(parsedToken) ||
+            !query.TryGetValue("token", out string? parsedToken) || !IsCanonicalInviteToken(parsedToken) ||
             !query.TryGetValue("exp", out string? expiryText) || !long.TryParse(expiryText, out long expiry) || expiry <= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
         {
             error = "The SDA++ device invitation is invalid or expired.";
@@ -429,6 +484,21 @@ public sealed class DeviceRegistryClient(HttpClient httpClient, IDeviceRequestSi
         inviteId = parsedInvite;
         inviteToken = parsedToken;
         return true;
+    }
+
+    private static bool IsCanonicalInviteToken(string token)
+    {
+        if (token.Length != 43 || token.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not ('-' or '_')))
+            return false;
+        byte[] decoded = Base64UrlDecode(token);
+        try
+        {
+            return decoded.Length == 32 && Base64Url(decoded) == token;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(decoded);
+        }
     }
 
     private static byte[] DecryptGrant(string? envelope, string token, string vaultId, string inviteId)

@@ -56,6 +56,11 @@ public partial class MainWindow : Window
         DataContextChanged += OnDataContextChanged;
         SizeChanged += (_, args) => UpdateResponsiveLayout(args.NewSize.Width);
         Opened += (_, _) => UpdateResponsiveLayout(ClientSize.Width);
+        Opened += async (_, _) =>
+        {
+            if (DataContext is MainViewModel model && model.CheckUpdatesOnStartup)
+                await model.CheckForUpdatesCommand.ExecuteAsync(null);
+        };
     }
 
     private void UpdateResponsiveLayout(double width)

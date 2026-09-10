@@ -24,6 +24,7 @@ public enum UiDensity
 
 public sealed record AppPreferences
 {
+    public bool CheckUpdatesOnStartup { get; init; } = true;
     public AppLanguage Language { get; init; } = AppLanguage.English;
     public ThemePreset Theme { get; init; } = ThemePreset.Graphite;
     public UiDensity Density { get; init; } = UiDensity.Compact;

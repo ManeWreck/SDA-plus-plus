@@ -8,6 +8,115 @@ namespace SDAPlusPlus.Core.Tests.Devices;
 
 public sealed class DeviceRegistryClientTests
 {
+    [Fact]
+    public async Task PendingCommandsBindLegacyResponseToSignedIdentity()
+    {
+        string id = Guid.NewGuid().ToString("D");
+        var handler = new CapturingHandler(HttpStatusCode.OK, new JObject { ["commands"] = new JArray(new JObject { ["commandId"] = id, ["type"] = "Lock", ["expiresAt"] = 1 }) }.ToString());
+        var client = new DeviceRegistryClient(new HttpClient(handler), new FakeSigner());
+        var result = await client.PendingCommandsAsync(ConfiguredSettings());
+        Assert.True(result.Success);
+        var command = Assert.Single(result.Commands);
+        Assert.Equal("vault-1", command.VaultId);
+        Assert.Equal("device-test", command.DeviceId);
+        Assert.Equal(HttpMethod.Get, handler.Method);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"commands\":{}}")]
+    [InlineData("{\"commands\":[{}]}")]
+    [InlineData("{\"commands\":[{\"commandId\":\"bad\",\"type\":\"Lock\",\"expiresAt\":1}]}")]
+    public async Task InvalidCommandListDoesNotLookLikeAnEmptyQueue(string json)
+    {
+        var client = new DeviceRegistryClient(new HttpClient(new CapturingHandler(HttpStatusCode.OK, json)), new FakeSigner());
+        Assert.False((await client.PendingCommandsAsync(ConfiguredSettings())).Success);
+    }
+
+    [Theory]
+    [InlineData(DeviceExecutionState.Started, "device-test", false)]
+    [InlineData(DeviceExecutionState.OutcomeUnknown, "device-test", false)]
+    [InlineData(DeviceExecutionState.Expired, "device-test", false)]
+    [InlineData(DeviceExecutionState.Completed, "other-device", false)]
+    [InlineData(DeviceExecutionState.Completed, "device-test", true)]
+    [InlineData(DeviceExecutionState.Failed, "device-test", true)]
+    public async Task AcknowledgmentOnlySendsKnownFinalResultForThisDevice(DeviceExecutionState state, string device, bool expected)
+    {
+        var handler = new CapturingHandler(HttpStatusCode.OK, "{}");
+        var client = new DeviceRegistryClient(new HttpClient(handler), new FakeSigner());
+        var command = new IncomingDeviceCommand("vault-1", device, Guid.NewGuid().ToString("D"), "Lock", long.MaxValue);
+        var result = await client.AcknowledgeCommandAsync(ConfiguredSettings(), new(command, state));
+        Assert.Equal(expected, result.Success);
+        if (expected)
+        {
+            Assert.Equal(HttpMethod.Post, handler.Method);
+            Assert.Equal(state.ToString(), JObject.Parse(handler.Body)["status"]!.Value<string>());
+        }
+        else Assert.Null(handler.Method);
+    }
+
+    [Theory]
+    [InlineData("v=1", "v=2")]
+    [InlineData("v=1&", "")]
+    [InlineData("relay.example", "relay.example%2Funexpected")]
+    [InlineData("relay.example", "user%40relay.example")]
+    [InlineData("https%3A", "http%3A")]
+    [InlineData("token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "token=short")]
+    [InlineData("token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB")]
+    [InlineData("exp=9999999999999", "exp=1")]
+    [InlineData("device-enroll?", "device-enroll/path?")]
+    public async Task UnsupportedInvitationIsRejectedBeforeNetwork(string original, string replacement)
+    {
+        CapturingHandler handler = new(HttpStatusCode.OK, "{}");
+        DeviceRegistryClient client = new(new HttpClient(handler), new FakeSigner());
+        string qr = "sdapp://device-enroll?v=1&relay=https%3A%2F%2Frelay.example&vault=AAAAAAAAAAAAAAAAAAAAAA&invite=BBBBBBBBBBBBBBBBBBBBBB&token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&exp=9999999999999";
+        var result = await client.ClaimInvitationAsync(qr.Replace(original, replacement), "123456", "Test");
+        Assert.False(result.Success);
+        Assert.Null(handler.Method);
+    }
+
+    [Fact]
+    public async Task OversizedInvitationIsRejectedBeforeNetwork()
+    {
+        CapturingHandler handler = new(HttpStatusCode.OK, "{}");
+        DeviceRegistryClient client = new(new HttpClient(handler), new FakeSigner());
+        var result = await client.ClaimInvitationAsync("sdapp://device-enroll?" + new string('a', 8192), "123456", "Test");
+        Assert.False(result.Success);
+        Assert.Null(handler.Method);
+    }
+
+    [Theory]
+    [InlineData("TrustedOnline", false)]
+    [InlineData("TrustedOffline", false)]
+    [InlineData("Temporary", false)]
+    [InlineData("Admin", true)]
+    [InlineData("", false)]
+    public async Task InvitationRequiresActiveAdminBeforeDispatch(string role, bool expired)
+    {
+        CapturingHandler handler = new(HttpStatusCode.OK, "{}");
+        DeviceRegistryClient client = new(new HttpClient(handler), new FakeSigner());
+        var settings = ConfiguredSettings();
+        settings.Role = role;
+        settings.ExpiresAt = expired ? 1 : null;
+        var result = await client.CreateInvitationAsync(settings, "Admin", [], []);
+        Assert.False(result.Success);
+        Assert.Null(handler.Method);
+    }
+
+    [Theory]
+    [InlineData("&vault=BBBBBBBBBBBBBBBBBBBBBB")]
+    [InlineData("&%76ault=BBBBBBBBBBBBBBBBBBBBBB")]
+    [InlineData("&broken")]
+    public async Task MalformedInvitationFailsWithoutRequest(string suffix)
+    {
+        CapturingHandler handler = new(HttpStatusCode.OK, "{}");
+        DeviceRegistryClient client = new(new HttpClient(handler), new FakeSigner());
+        string qr = "sdapp://device-enroll?v=1&relay=https%3A%2F%2Frelay.example&vault=AAAAAAAAAAAAAAAAAAAAAA&invite=BBBBBBBBBBBBBBBBBBBBBB&token=test&exp=9999999999999";
+        var result = await client.ClaimInvitationAsync(qr + suffix, "123456", "Test");
+        Assert.False(result.Success);
+        Assert.Null(handler.Method);
+    }
+
     [Theory]
     [InlineData("TrustedOnline", false, "phone-1")]
     [InlineData("Admin", true, "phone-1")]

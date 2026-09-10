@@ -136,6 +136,7 @@
                     <Button Classes="nav" Command="{Binding ShowEncryptionCommand}" Content="{Binding EncryptionNav}" />
                     <Button Classes="nav" Command="{Binding ShowDevicesCommand}" Content="{Binding DevicesNav}" />
                     <Button Classes="nav" Command="{Binding ShowSettingsCommand}" Content="{Binding Text.Settings}" />
+                    <Button Classes="primary" Command="{Binding OpenAvailableUpdateCommand}" Content="{Binding OpenUpdateLabel}" IsVisible="{Binding HasAvailableUpdate}" />
                 </StackPanel>
 
                 <Border Grid.Row="3" Padding="12" CornerRadius="14" Background="{StaticResource SidebarFooterBrush}">
@@ -845,6 +846,10 @@
                             </Border>
                             <ProgressBar IsVisible="{Binding IsRelayCheckBusy}" IsIndeterminate="True" Height="5" />
                             <Button Classes="primary" Command="{Binding CheckPairingRelayCommand}" Content="{Binding CheckRelayLabel}" />
+                            <TextBlock Text="{Binding IncomingCommandsHelp}" Classes="muted" TextWrapping="Wrap" />
+                            <Button Command="{Binding RefreshIncomingCommandsCommand}" Content="{Binding IncomingCommandsLabel}" />
+                            <TextBlock Text="{Binding IncomingCommandsStatus}" TextWrapping="Wrap" />
+                            <ListBox ItemsSource="{Binding IncomingCommandRows}" MaxHeight="160" />
                         </StackPanel>
                     </Border>
 
@@ -1095,7 +1100,20 @@
                     <Button Grid.Column="1" Command="{Binding ShowDashboardCommand}" Content="{Binding Text.BackToDashboard}" />
                 </Grid>
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="16" Margin="0,0,8,8">
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="16" Margin="0,0,8,8">
+                    <Border Grid.Row="3" Grid.ColumnSpan="2" Classes="card">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="{Binding UpdatesTitle}" FontSize="20" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding UpdateChannelLabel}" />
+                            <CheckBox IsChecked="{Binding CheckUpdatesOnStartup}" Content="{Binding StartupUpdatesLabel}" />
+                            <TextBlock Text="{Binding UpdateHelp}" TextWrapping="Wrap" Classes="muted" />
+                            <WrapPanel>
+                                <Button Content="{Binding CheckUpdatesLabel}" Command="{Binding CheckForUpdatesCommand}" />
+                                <Button Content="{Binding OpenUpdateLabel}" Command="{Binding OpenAvailableUpdateCommand}" IsVisible="{Binding HasAvailableUpdate}" />
+                            </WrapPanel>
+                            <TextBlock Text="{Binding UpdateStatus}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
                     <Border Classes="card">
                         <StackPanel Spacing="14">
                             <TextBlock Text="{Binding Text.Appearance}" Classes="eyebrow" />

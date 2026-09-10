@@ -109,3 +109,5 @@ public sealed class RegistryAuditEvent
 public sealed record DeviceAuditResult(bool Success, IReadOnlyList<RegistryAuditEvent> Events, string? Detail = null);
 
 public sealed record DeviceCommandResult(bool Success, string? Detail = null);
+
+public sealed record PendingDeviceCommandsResult(bool Success, IReadOnlyList<IncomingDeviceCommand> Commands, string? Detail = null);
