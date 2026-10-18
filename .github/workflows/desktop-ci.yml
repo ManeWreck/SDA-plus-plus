@@ -34,7 +34,7 @@ jobs:
           [xml]$project = Get-Content open-source/SDAPlusPlus.Desktop/SDAPlusPlus.Desktop.csproj
           $version = [string]$project.Project.PropertyGroup.Version
           if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") { throw "Tag/version mismatch" }
-          Copy-Item docs/releases/1.7.4.md artifacts/avalonia/RELEASE-NOTES.md
+          Copy-Item docs/releases/1.7.5.md artifacts/avalonia/RELEASE-NOTES.md
           ./.github/scripts/assert-no-sensitive-files.ps1 -ScanRoot artifacts/avalonia
           $archive = "artifacts/SDAplusplus-Avalonia-$version-win-x64.zip"
           Compress-Archive -Path artifacts/avalonia/* -DestinationPath $archive
@@ -70,11 +70,11 @@ jobs:
           $assets = @(Get-ChildItem artifacts -File | ForEach-Object FullName)
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag @assets --title "SDA++ $tag — Avalonia Desktop" --notes-file docs/releases/1.7.4.md --latest
+            gh release create $tag @assets --title "SDA++ $tag — Avalonia Desktop" --notes-file docs/releases/1.7.5.md --latest
             if ($LASTEXITCODE -ne 0) { throw "Release creation failed" }
           } else {
             gh release upload $tag @assets --clobber
             if ($LASTEXITCODE -ne 0) { throw "Asset upload failed" }
-            gh release edit $tag --title "SDA++ $tag — Avalonia Desktop" --notes-file docs/releases/1.7.4.md --latest
+            gh release edit $tag --title "SDA++ $tag — Avalonia Desktop" --notes-file docs/releases/1.7.5.md --latest
             if ($LASTEXITCODE -ne 0) { throw "Release update failed" }
           }

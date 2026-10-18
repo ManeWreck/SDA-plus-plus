@@ -4,9 +4,9 @@
 
 **Steam Guard, account management, confirmations and encrypted cloud backups in an Avalonia desktop interface.**
 
-[Download Windows x64](https://github.com/ManeWreck/SDA-plus-plus/releases/latest) · [Русское описание](README.ru.md) · [Build from source](open-source/README.md) · [Release notes](docs/releases/1.7.4.md)
+[Download Windows x64](https://github.com/ManeWreck/SDA-plus-plus/releases/latest) · [Русское описание](README.ru.md) · [Build from source](open-source/README.md) · [Release notes](docs/releases/1.7.5.md)
 
-The main application is now **Avalonia 1.7.4**. Windows x64 is the supported release target. The earlier WinForms UI remains in the source tree for reference and compatibility work; it is no longer the default download.
+The main application is now **Avalonia 1.7.5**. Windows x64 is the supported release target. The earlier WinForms UI remains in the source tree for reference and compatibility work; it is no longer the default download.
 
 ![Avalonia dashboard with fictional demo accounts](docs/screenshots/dashboard.png)
 
@@ -59,7 +59,7 @@ An existing `credentials.secure.json` can be downloaded from the selected cloud.
 
 ## Install or migrate
 
-1. Download `SDAplusplus-Avalonia-1.7.4-win-x64.zip` from [Releases](https://github.com/ManeWreck/SDA-plus-plus/releases/latest).
+1. Download `SDAplusplus-Avalonia-1.7.5-win-x64.zip` from [Releases](https://github.com/ManeWreck/SDA-plus-plus/releases/latest).
 2. Extract the entire archive into a new folder, then run `SDA++.exe`. The Windows x64 package includes .NET; no separate runtime install is needed.
 3. Keep a backup of your existing SDA folder. Choose **Account setup → Import an SDA / SDA++ folder** or configure cloud restore.
 4. Encrypted account files need their original password. The credentials vault uses its own key. Local folder import does not copy machine-specific secrets or replace an existing account set.
@@ -87,6 +87,6 @@ The release workflow tests Core, builds Avalonia and publishes an autonomous Win
 dotnet run --project tools/SDAPlusPlus.Screenshots -c Release
 ```
 
-See [source layout](open-source/README.md), [screenshot provenance](docs/screenshots/README.md) and [1.7.4 verification notes](docs/releases/1.7.4.md).
+See [source layout](open-source/README.md), [screenshot provenance](docs/screenshots/README.md) and [1.7.5 verification notes](docs/releases/1.7.5.md).
 
 Based on the original Steam Desktop Authenticator and SteamAuth projects. See [LICENSE](LICENSE) and the bundled library notices.

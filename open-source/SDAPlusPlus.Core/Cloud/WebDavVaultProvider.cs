@@ -127,7 +127,7 @@ public sealed class WebDavVaultProvider(HttpClient httpClient) : ICloudVaultProv
                 using HttpResponseMessage response = await CloudReadTransport.SendAsync(httpClient, request, request.Method.Method == "GET" ? "download " + Path.GetFileName(request.RequestUri!.LocalPath) : "list cloud directory", cancellationToken);
                 if (!response.IsSuccessStatusCode)
                 {
-                    return new CloudPullPackageResult(false, $"{fileName} returned HTTP {(int)response.StatusCode}.");
+                    return new CloudPullPackageResult(false, CloudReadTransport.DescribeFailure(response, "download account file"));
                 }
 
                 accountFiles[fileName] = await ReadLimitedTextAsync(response, fileName, cancellationToken);
@@ -200,7 +200,7 @@ public sealed class WebDavVaultProvider(HttpClient httpClient) : ICloudVaultProv
                 new Uri(BuildDirectoryUri(settings), Uri.EscapeDataString(fileName)), settings);
             using HttpResponseMessage response = await CloudReadTransport.SendAsync(httpClient, request, request.Method.Method == "GET" ? "download " + Path.GetFileName(request.RequestUri!.LocalPath) : "list/test cloud directory", cancellationToken);
             if (response.StatusCode == HttpStatusCode.NotFound) return CloudCredentialDocument.ValidateDownload(null);
-            if (!response.IsSuccessStatusCode) return new(false, $"WebDAV download returned HTTP {(int)response.StatusCode}.");
+            if (!response.IsSuccessStatusCode) return new(false, CloudReadTransport.DescribeFailure(response, "download credentials.secure.json"));
             return CloudCredentialDocument.ValidateDownload(await ReadLimitedTextAsync(response, fileName, cancellationToken));
         }
         catch (Exception ex) when (ex is IOException or HttpRequestException or InvalidOperationException or TaskCanceledException)

@@ -5,6 +5,27 @@ namespace SDAPlusPlus.Core.Tests;
 
 public class CloudReadTransportTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task LongServerCooldownIsRespectedInBothHeaderFormats(bool useDate)
+    {
+        var handler = new Handler((r, n, ct) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+            response.Headers.RetryAfter = useDate
+                ? new System.Net.Http.Headers.RetryConditionHeaderValue(DateTimeOffset.UtcNow.AddMinutes(2))
+                : new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromMinutes(2));
+            return Task.FromResult(response);
+        });
+        using var client = new HttpClient(handler);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://cloud.test/file");
+        using var result = await CloudReadTransport.SendAsync(client, request, "read");
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, result.StatusCode);
+        Assert.Equal(1, handler.Calls);
+        Assert.Contains("Retry-After:", CloudReadTransport.DescribeFailure(result, "read"));
+    }
+
     [Fact]
     public async Task RetriesTransientReadAndRetainsAuthorization()
     {

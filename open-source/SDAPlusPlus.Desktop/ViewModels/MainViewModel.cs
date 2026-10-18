@@ -3400,7 +3400,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 CredentialVaultState.Ready => IsRussian
                     ? $"Зашифровано: {(result.Encrypted ? "да" : "нет")}. Записей: {result.Credentials.Count}."
                     : $"Encrypted: {(result.Encrypted ? "yes" : "no")}. Entries: {result.Credentials.Count}.",
-                CredentialVaultState.Missing => IsRussian ? "credentials.secure.json пока не создан." : "credentials.secure.json has not been created yet.",
+                CredentialVaultState.Missing => IsRussian ? "На этом ПК нет credentials.secure.json. Наличие в облаке ещё не проверено; нажмите «Скачать логины из облака»." : "No local credentials.secure.json. Cloud availability has not been checked; choose Download credentials from cloud.",
                 CredentialVaultState.Locked => IsRussian ? "Файл зашифрован, но DPAPI-ключ недоступен." : "The file is encrypted, but its DPAPI key is unavailable.",
                 _ => result.Detail ?? (IsRussian ? "Файл логинов повреждён." : "The credentials file is invalid.")
             };

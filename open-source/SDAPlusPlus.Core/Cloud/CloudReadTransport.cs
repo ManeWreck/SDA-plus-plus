@@ -12,6 +12,18 @@ namespace SDAPlusPlus.Core.Cloud;
 /// <summary>Bounded, retryable reads. Never used for cloud writes.</summary>
 public static class CloudReadTransport
 {
+    public static string DescribeFailure(HttpResponseMessage response, string operation)
+    {
+        string message = $"WebDAV: {operation}: HTTP {(int)response.StatusCode}.";
+        if (response.StatusCode is HttpStatusCode.ServiceUnavailable or HttpStatusCode.TooManyRequests)
+        {
+            message += " The cloud service is temporarily unavailable or limiting requests. No local files were replaced. Try again later.";
+            if (response.Headers.RetryAfter is { } retry)
+                message += " Retry-After: " + retry + ".";
+        }
+        return message;
+    }
+
     public static async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpRequestMessage template,
         string operation, CancellationToken cancellationToken = default, TimeSpan? attemptTimeout = null)
     {
@@ -42,7 +54,9 @@ public static class CloudReadTransport
                 if (attempt == 1 && (response.StatusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests
                     or HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout))
                 {
-                    var delay = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(1);
+                    var delay = response.Headers.RetryAfter?.Delta
+                        ?? (response.Headers.RetryAfter?.Date is DateTimeOffset retryDate
+                            ? retryDate - DateTimeOffset.UtcNow : TimeSpan.FromSeconds(1));
                     // Do not hammer a provider that explicitly asks for a long cooldown.
                     if (delay > TimeSpan.FromSeconds(5)) return response;
                     response.Dispose();

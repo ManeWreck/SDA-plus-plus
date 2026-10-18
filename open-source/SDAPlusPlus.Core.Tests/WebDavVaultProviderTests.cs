@@ -111,6 +111,26 @@ public sealed class WebDavVaultProviderTests
         Assert.Equal(4, handler.Requests.Count);
     }
 
+    [Fact]
+    public async Task UnavailableAccountAbortsWithoutReturningAPartialPackage()
+    {
+        const string manifest = """{"encrypted":true,"entries":[{"filename":"demo.maFile"}]}""";
+        var handler = new QueueHandler(
+            new HttpResponseMessage(HttpStatusCode.MultiStatus),
+            JsonResponse(HttpStatusCode.OK, manifest),
+            JsonResponse(HttpStatusCode.OK, manifest),
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable),
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        var provider = new WebDavVaultProvider(new HttpClient(handler));
+        var result = await provider.PreparePullAsync(Settings);
+        Assert.False(result.Success);
+        Assert.Null(result.Package);
+        Assert.Contains("HTTP 503", result.Message);
+        Assert.Contains("No local files were replaced", result.Message);
+        Assert.DoesNotContain("demo.maFile", result.Message);
+        Assert.Equal(5, handler.Requests.Count);
+    }
+
     private static HttpResponseMessage JsonResponse(HttpStatusCode status, string content) => new(status)
     {
         Content = new StringContent(content, Encoding.UTF8, "application/json")
