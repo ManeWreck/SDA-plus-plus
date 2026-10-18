@@ -1,0 +1,1421 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:SDAPlusPlus.Desktop.ViewModels" xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="d" d:DesignWidth="1180" d:DesignHeight="720" x:Class="SDAPlusPlus.Desktop.Views.MainWindow" x:DataType="vm:MainViewModel" Width="1180" Height="720" MinWidth="920" MinHeight="620" WindowStartupLocation="CenterScreen" Background="{DynamicResource AppBackgroundBrush}" Icon="/Assets/sdapp.ico" Title="SDA++ Desktop">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#111722" />
+        <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#171E2B" />
+        <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#1E2838" />
+        <SolidColorBrush x:Key="StrokeBrush" Color="#2A3548" />
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F2F6FF" />
+        <SolidColorBrush x:Key="TextMutedBrush" Color="#8996AA" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#5F87FF" />
+        <SolidColorBrush x:Key="SuccessBrush" Color="#3DD6A0" />
+        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#090D15" />
+        <SolidColorBrush x:Key="ButtonBrush" Color="#172031" />
+        <SolidColorBrush x:Key="ButtonHoverBrush" Color="#23304A" />
+        <SolidColorBrush x:Key="InputBrush" Color="#0E141F" />
+        <SolidColorBrush x:Key="SidebarBrush" Color="#E60E141F" />
+        <SolidColorBrush x:Key="SidebarFooterBrush" Color="#111B2A" />
+        <SolidColorBrush x:Key="SelectionBrush" Color="#24395F" />
+    </Window.Resources>
+
+    <Window.Styles>
+        <Style Selector="WrapPanel.actions &gt; Button"><Setter Property="Margin" Value="0,0,8,8" /></Style>
+        <Style Selector="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="FontFamily" Value="avares://Avalonia.Fonts.Inter/Assets#Inter" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="FontFamily" Value="avares://Avalonia.Fonts.Inter/Assets#Inter" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Background" Value="{StaticResource ButtonBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource StrokeBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button /template/ ContentPresenter"><Setter Property="RecognizesAccessKey" Value="False" /></Style>
+        <Style Selector="Button:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource ButtonHoverBrush}" />
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="#7EA0FF" />
+        </Style>
+        <Style Selector="Button.nav">
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="Margin" Value="0,3" />
+        </Style>
+        <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource ButtonHoverBrush}" />
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="FontFamily" Value="avares://Avalonia.Fonts.Inter/Assets#Inter" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Background" Value="{StaticResource InputBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource StrokeBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="12,9" />
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource StrokeBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+        <Style Selector="TextBlock.eyebrow">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="1.2" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+        </Style>
+        <Style Selector="ListBox.account-list">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ListBox.account-list &gt; ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ListBox.account-list &gt; ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
+            <Setter Property="CornerRadius" Value="14" />
+        </Style>
+    </Window.Styles>
+
+    <Grid x:Name="AppShell" ColumnDefinitions="260,*">
+        <Border Grid.ColumnSpan="2" Background="{StaticResource AppBackgroundBrush}" />
+
+        <Border x:Name="Sidebar" Grid.Column="0" Margin="14" Padding="12" CornerRadius="20" Background="{StaticResource SidebarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <StackPanel Margin="8,8,8,24">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Border Width="34" Height="34" CornerRadius="11" Background="{StaticResource AccentBrush}">
+                            <TextBlock Text="S+" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel>
+                            <TextBlock Text="SDA++" FontSize="17" FontWeight="Bold" />
+                            <TextBlock Text="DESKTOP" Classes="eyebrow" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"><StackPanel>
+                    <Button Classes="nav" Command="{Binding ShowDashboardCommand}"><TextBlock Text="{Binding Text.Dashboard}" TextWrapping="Wrap" /></Button>
+                    <Button Classes="nav" Command="{Binding ShowConfirmationsCommand}"><TextBlock Text="{Binding Text.Confirmations}" TextWrapping="Wrap" /></Button>
+                    <Button Classes="nav" Command="{Binding ShowQrCommand}"><TextBlock Text="{Binding Text.QrSignIn}" TextWrapping="Wrap" /></Button>
+                    <Button Classes="nav" Command="{Binding ShowCloudCommand}"><TextBlock Text="{Binding Text.CloudVault}" TextWrapping="Wrap" /></Button>
+                    <Button Classes="nav" Command="{Binding ShowMonitoringCommand}"><TextBlock Text="{Binding MonitoringNav}" TextWrapping="Wrap" /></Button>
+                    <Button Classes="nav" Command="{Binding ShowCredentialsCommand}"><TextBlock Text="{Binding CredentialsNav}" TextWrapping="Wrap" /></Button>
+                    <Button Classes="nav" Command="{Binding ShowEncryptionCommand}"><TextBlock Text="{Binding EncryptionNav}" TextWrapping="Wrap" /></Button>
+                    <Button Classes="nav" Command="{Binding ShowDevicesCommand}"><TextBlock Text="{Binding DevicesNav}" TextWrapping="Wrap" /></Button>
+                    <Button Classes="nav" Command="{Binding ShowSettingsCommand}"><TextBlock Text="{Binding Text.Settings}" TextWrapping="Wrap" /></Button>
+                    <Button Classes="nav" Command="{Binding OpenInitialSetupCommand}"><TextBlock Text="{Binding InitialSetupLabel}" TextWrapping="Wrap" /></Button>
+<Button Classes="primary" Command="{Binding OpenAvailableUpdateCommand}" IsVisible="{Binding HasAvailableUpdate}"><TextBlock Text="{Binding OpenUpdateLabel}" TextWrapping="Wrap" /></Button>
+                </StackPanel></ScrollViewer>
+
+                <Border Grid.Row="2" Padding="12" Margin="0,12,0,0" CornerRadius="14" Background="{StaticResource SidebarFooterBrush}">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="{Binding Text.VaultStatus}" Classes="eyebrow" />
+                        <TextBlock Text="{Binding Text.LocalProtection}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Text.VaultReady}" Classes="muted" FontSize="12" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid x:Name="PageHost" Grid.Column="1" Margin="8,14,18,14">
+            <Grid IsVisible="{Binding IsDashboardVisible}" RowDefinitions="Auto,*">
+                <Grid x:Name="DashboardHeader" RowDefinitions="Auto,Auto" RowSpacing="12" Margin="8,4,8,18">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Text.DashboardTitle}" FontSize="27" FontWeight="Bold" />
+                        <TextBlock Text="{Binding Text.DashboardSubtitle}" Classes="muted" Margin="0,5,0,0" />
+                    </StackPanel>
+                    <WrapPanel Classes="actions" x:Name="DashboardActions" Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Command="{Binding ShowQrCommand}" Margin="0,0,8,8"><TextBlock Text="{Binding Text.ScanQr}" TextWrapping="Wrap" /></Button>
+                        <Button Command="{Binding ShowAutoLoginAllPanelCommand}" Margin="0,0,8,8"><TextBlock Text="{Binding AutoLoginAllLabel}" TextWrapping="Wrap" /></Button>
+                        <Button Classes="primary" Command="{Binding PickAccountFileCommand}" Margin="0,0,8,8"><TextBlock Text="{Binding Text.AddAccount}" TextWrapping="Wrap" /></Button>
+                        <Button Click="OpenEnrollment" Margin="0,0,8,8"><TextBlock Text="{Binding CreateAuthenticatorLabel}" TextWrapping="Wrap" /></Button>
+                    </WrapPanel>
+                </Grid>
+
+                <Grid x:Name="DashboardBody" Grid.Row="1" ColumnDefinitions="330,*" ColumnSpacing="16">
+                    <Border Classes="card" Padding="16">
+                        <Grid RowDefinitions="Auto,Auto,*,Auto">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Text.Accounts}" Classes="eyebrow" />
+                                    <TextBlock Text="{Binding StatusMessage}" Classes="muted" FontSize="12" Margin="0,5,0,0" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Command="{Binding ReloadAccountsCommand}" Padding="10,6"><TextBlock Text="{Binding Text.Reload}" TextWrapping="Wrap" /></Button>
+                            </Grid>
+                            <TextBox Grid.Row="1" IsVisible="{Binding AccountSearchEnabled}" Text="{Binding SearchText}" Watermark="{Binding Text.SearchAccounts}" Margin="0,14,0,12" />
+                            <ListBox Grid.Row="2" Classes="account-list" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:AccountItemViewModel">
+                                        <Grid ColumnDefinitions="42,*,Auto" Margin="11,9">
+                                            <Grid Width="42" Height="42">
+                                                <Border Width="38" Height="38" CornerRadius="12" Background="#263650" BorderBrush="#43536D" BorderThickness="1" ClipToBounds="True" HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                                                    <Grid>
+                                                        <Image Source="{Binding Avatar}" Stretch="UniformToFill" IsVisible="{Binding HasAvatar}" />
+                                                        <TextBlock Text="{Binding Initial}" FontWeight="Bold" IsVisible="{Binding ShowAvatarFallback}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Grid>
+                                                </Border>
+                                                <Border Width="18" Height="18" CornerRadius="9" Background="#171E2A" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" HorizontalAlignment="Right" VerticalAlignment="Top" IsVisible="{Binding IsFavorite}">
+                                                    <TextBlock Text="★" Foreground="{StaticResource AccentBrush}" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                            </Grid>
+                                            <StackPanel Grid.Column="1" Margin="11,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding SessionLabel}" Classes="muted" FontSize="11" Margin="0,3,0,0" />
+                                            </StackPanel>
+                                            <Border Grid.Column="2" Width="8" Height="8" CornerRadius="4" Background="{StaticResource SuccessBrush}" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <Border Grid.Row="2" IsVisible="{Binding IsVaultLocked}" Padding="18" CornerRadius="16" Background="#EE121A27" BorderBrush="#3A4A63" BorderThickness="1">
+                                <StackPanel VerticalAlignment="Center" Spacing="10">
+                                    <Border Width="42" Height="42" CornerRadius="14" Background="#233657" HorizontalAlignment="Left">
+                                        <TextBlock Text="L" FontWeight="Bold" Foreground="#8EACFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="{Binding VaultStateTitle}" FontSize="19" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding VaultStateDetail}" Classes="muted" TextWrapping="Wrap" />
+                                    <TextBox Text="{Binding VaultPassword}" PasswordChar="●" Watermark="{Binding Text.VaultPassword}" Margin="0,5,0,0" />
+                                    <Button Classes="primary" Command="{Binding UnlockVaultCommand}" HorizontalAlignment="Stretch"><TextBlock Text="{Binding Text.UnlockVault}" TextWrapping="Wrap" /></Button>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="2" IsVisible="{Binding IsVaultError}" Padding="18" CornerRadius="16" Background="#EE121A27" BorderBrush="#59404A" BorderThickness="1">
+                                <StackPanel VerticalAlignment="Center" Spacing="10">
+                                    <TextBlock Text="{Binding VaultStateTitle}" FontSize="19" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding VaultStateDetail}" Classes="muted" TextWrapping="Wrap" />
+                                    <Button Command="{Binding ReloadAccountsCommand}" HorizontalAlignment="Left"><TextBlock Text="{Binding Text.TryAgain}" TextWrapping="Wrap" /></Button>
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Grid.Row="3" Text="{Binding SourcePath}" TextTrimming="CharacterEllipsis" Classes="muted" FontSize="10" Margin="0,10,0,0" />
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
+                        <Border Classes="card">
+                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+                                <TextBlock Text="{Binding Text.SteamGuardCode}" Classes="eyebrow" />
+                                <TextBlock Grid.Row="1" Text="{Binding SelectedAccount.Code, FallbackValue=-----}" FontSize="48" FontWeight="SemiBold" LetterSpacing="8" Margin="0,16,0,12" />
+                                <Button Grid.Column="1" Grid.Row="1" Command="{Binding CopyCodeCommand}" VerticalAlignment="Center"><TextBlock Text="{Binding Text.CopyCode}" TextWrapping="Wrap" /></Button>
+                                <ProgressBar Grid.Row="2" Grid.ColumnSpan="2" Minimum="0" Maximum="30" Value="{Binding SelectedAccount.SecondsRemaining}" Height="6" Foreground="{StaticResource AccentBrush}" Background="#202A3A" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1" Classes="card">
+                            <Grid x:Name="SelectedAccountLayout" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Text.SelectedAccount}" Classes="eyebrow" />
+                                    <TextBlock Text="{Binding SelectedAccountName}" FontSize="22" FontWeight="SemiBold" Margin="0,8,0,0" />
+                                </StackPanel>
+                                <WrapPanel IsVisible="{Binding HasSelectedAccount}" x:Name="SelectedAccountActions" Grid.Column="1" Orientation="Horizontal">
+                                    <Button Command="{Binding CopySteamIdCommand}"><TextBlock Text="{Binding Text.CopySteamId}" TextWrapping="Wrap" /></Button>
+                                    <Button Command="{Binding ToggleFavoriteCommand}" Margin="8,0,0,0"><TextBlock Text="{Binding SelectedAccount.FavoriteActionLabel}" TextWrapping="Wrap" /></Button>
+                                </WrapPanel>
+                                <StackPanel IsVisible="{Binding HasSelectedAccount}" x:Name="SelectedAccountBadges" Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" Margin="0,16,0,18">
+                                    <Border Background="#193F36" CornerRadius="12" Padding="12,6">
+                                        <TextBlock Text="{Binding SelectedAccount.SessionLabel}" Foreground="{StaticResource SuccessBrush}" FontSize="12" FontWeight="SemiBold" />
+                                    </Border>
+                                    <Border Background="#1D2F50" CornerRadius="12" Padding="12,6">
+                                        <TextBlock Text="{Binding Text.VaultLinked}" Foreground="#8EACFF" FontSize="12" FontWeight="SemiBold" />
+                                    </Border>
+                                </StackPanel>
+                                <Grid IsVisible="{Binding HasSelectedAccount}" x:Name="SelectedAccountCommands" Grid.Row="2" Grid.ColumnSpan="2" ColumnDefinitions="*,*,*" ColumnSpacing="10" RowSpacing="8">
+                                    <Button x:Name="ConfirmationsButton" Command="{Binding ShowConfirmationsCommand}"><TextBlock Text="{Binding Text.Confirmations}" TextWrapping="Wrap" /></Button>
+                                    <Button x:Name="LoginAgainButton" Grid.Column="1" Command="{Binding ShowLoginPanelCommand}"><TextBlock Text="{Binding Text.LoginAgain}" TextWrapping="Wrap" /></Button>
+                                    <Button x:Name="EndSessionsButton" Grid.Column="2" Command="{Binding ShowSteamSessionsCommand}"><TextBlock Text="{Binding ManageSteamSessionsLabel}" TextWrapping="Wrap" /></Button>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="16">
+                            <Border Classes="card">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="{Binding Text.Security}" Classes="eyebrow" />
+                                    <TextBlock Text="{Binding Text.ProtectedLocally}" FontSize="18" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Text.SecurityDescription}" Classes="muted" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Classes="card">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="{Binding Text.CloudSync}" Classes="eyebrow" />
+                                    <TextBlock Text="{Binding Text.ReadyToConnect}" FontSize="18" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Text.CloudDescription}" Classes="muted" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+
+            <Grid IsVisible="{Binding IsConfirmationsVisible}" RowDefinitions="Auto,*">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="12" Margin="8,4,8,18">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Text.ConfirmationsTitle}" FontSize="27" FontWeight="Bold" />
+                        <TextBlock Text="{Binding Text.ConfirmationsSubtitle}" Classes="muted" Margin="0,5,0,0" />
+                    </StackPanel>
+                    <WrapPanel Grid.Row="1" Classes="actions">
+                        <Button Command="{Binding RefreshConfirmationsCommand}" Margin="0,0,8,8"><TextBlock Text="{Binding Text.RefreshConfirmations}" TextWrapping="Wrap" /></Button>
+                        <Button Command="{Binding ShowDashboardCommand}" Margin="0,0,8,8"><TextBlock Text="{Binding Text.BackToDashboard}" TextWrapping="Wrap" /></Button>
+                    </WrapPanel>
+                </Grid>
+
+                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled"><Grid ColumnDefinitions="1.35*,0.65*" ColumnSpacing="16" Classes="responsive-columns" RowSpacing="16">
+                    <Border Classes="card" Padding="14">
+                        <Grid RowDefinitions="Auto,*" RowSpacing="10">
+                            <ProgressBar IsVisible="{Binding IsConfirmationBusy}" IsIndeterminate="True" Height="5" />
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Confirmations}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ConfirmationItemViewModel">
+                                            <Border Margin="0,0,0,10" Padding="16" CornerRadius="15" Background="#131C29" BorderBrush="#2A3A50" BorderThickness="1">
+                                                <Grid RowDefinitions="Auto,Auto" RowSpacing="12">
+                                                    <Grid ColumnDefinitions="118,*,Auto" ColumnSpacing="12">
+                                                        <Canvas Width="112" Height="92" ToolTip.Tip="{Binding TradeDirectionLabel}">
+                                                            <Border Canvas.Left="48" Canvas.Top="32" Width="60" Height="60" CornerRadius="15" Background="Transparent" BorderThickness="0" ClipToBounds="True" ZIndex="2">
+                                                                <Grid>
+                                                                    <Image Source="{Binding SenderAvatar}" Stretch="UniformToFill" IsVisible="{Binding HasSenderAvatar}" />
+                                                                    <TextBlock Text="{Binding SenderInitial}" FontWeight="Bold" Foreground="#C7D2ED" IsVisible="{Binding ShowSenderFallback}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                </Grid>
+                                                            </Border>
+
+                                                            <Path Data="M 59,14 C 83,14 89,21 89,31 M 84,26 L 89,31 L 94,26" Stroke="{StaticResource AccentBrush}" Opacity="0.9" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round" ZIndex="0" IsVisible="{Binding IsTrade}" />
+                                                            <Path Data="M 18,59 C 18,80 31,82 47,82 M 42,77 L 47,82 L 42,87" Stroke="{StaticResource AccentBrush}" Opacity="0.62" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round" ZIndex="0" IsVisible="{Binding IsTrade}" />
+
+                                                            <Border Canvas.Left="0" Canvas.Top="0" Width="62" Height="62" CornerRadius="16" Background="Transparent" BorderThickness="0" ClipToBounds="True" ZIndex="3">
+                                                                <Grid>
+                                                                    <Image Source="{Binding ReceiverAvatar}" Stretch="UniformToFill" IsVisible="{Binding HasReceiverAvatar}" />
+                                                                    <TextBlock Text="{Binding Initial}" FontWeight="Bold" Foreground="#D3DCF2" IsVisible="{Binding ShowReceiverFallback}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                </Grid>
+                                                            </Border>
+                                                        </Canvas>
+
+                                                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <TextBlock Text="{Binding TypeLabel}" Foreground="#8EACFF" FontSize="11" FontWeight="SemiBold" />
+                                                                <TextBlock Text="{Binding AccountName}" Classes="muted" FontSize="11" />
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding Headline}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                            <TextBlock Text="{Binding SummaryText}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="2" Spacing="7" VerticalAlignment="Center">
+                                                            <Button Command="{Binding DataContext.ToggleConfirmationDetailsCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" IsVisible="{Binding IsTrade}"><TextBlock Text="{Binding DetailsActionLabel}" TextWrapping="Wrap" /></Button>
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <Button Command="{Binding DataContext.QueueRejectConfirmationCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"><TextBlock Text="{Binding DataContext.Text.Reject, RelativeSource={RelativeSource AncestorType=Window}}" TextWrapping="Wrap" /></Button>
+                                                                <Button Classes="primary" Command="{Binding DataContext.QueueAcceptConfirmationCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"><TextBlock Text="{Binding DataContext.Text.Accept, RelativeSource={RelativeSource AncestorType=Window}}" TextWrapping="Wrap" /></Button>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </Grid>
+
+                                                    <Border Grid.Row="1" IsVisible="{Binding IsDetailsVisible}" Padding="12" CornerRadius="10" Background="#0D1520" BorderBrush="#26364A" BorderThickness="1">
+                                                        <StackPanel Spacing="12">
+                                                            <ProgressBar IsVisible="{Binding IsDetailsBusy}" IsIndeterminate="True" Height="3" />
+                                                            <TextBlock Text="{Binding DetailsText}" Classes="muted" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding HasDetailsError}" />
+
+                                                            <StackPanel Spacing="7">
+                                                                <TextBlock Text="{Binding GivingLabel}" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
+                                                                <ItemsControl ItemsSource="{Binding GivingItems}">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate x:DataType="vm:ConfirmationTradeItemViewModel">
+                                                                            <Border Width="112" Margin="0,0,9,9" Padding="7" CornerRadius="9" Background="#151D28" BorderBrush="#34445A" BorderThickness="1">
+                                                                                <StackPanel Spacing="6">
+                                                                                    <Border Height="92" Background="#0A1018" CornerRadius="6">
+                                                                                        <Image Source="{Binding Image}" Stretch="Uniform" />
+                                                                                    </Border>
+                                                                                    <TextBlock Text="{Binding Name}" FontSize="11" TextWrapping="Wrap" MaxHeight="34" TextTrimming="CharacterEllipsis" />
+                                                                                </StackPanel>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                                <TextBlock Text="{Binding NothingLabel}" Classes="muted" IsVisible="{Binding !HasGivingItems}" />
+                                                            </StackPanel>
+
+                                                            <StackPanel Spacing="7">
+                                                                <TextBlock Text="{Binding ReceivingLabel}" Foreground="{StaticResource AccentBrush}" Opacity="0.78" FontWeight="SemiBold" />
+                                                                <ItemsControl ItemsSource="{Binding ReceivingItems}">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate x:DataType="vm:ConfirmationTradeItemViewModel">
+                                                                            <Border Width="112" Margin="0,0,9,9" Padding="7" CornerRadius="9" Background="#151D28" BorderBrush="#34445A" BorderThickness="1">
+                                                                                <StackPanel Spacing="6">
+                                                                                    <Border Height="92" Background="#0A1018" CornerRadius="6">
+                                                                                        <Image Source="{Binding Image}" Stretch="Uniform" />
+                                                                                    </Border>
+                                                                                    <TextBlock Text="{Binding Name}" FontSize="11" TextWrapping="Wrap" MaxHeight="34" TextTrimming="CharacterEllipsis" />
+                                                                                </StackPanel>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                                <TextBlock Text="{Binding NothingLabel}" Classes="muted" IsVisible="{Binding !HasReceivingItems}" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Spacing="16">
+                        <Border Classes="card">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="{Binding Text.Confirmations}" Classes="eyebrow" />
+                                <TextBlock Text="{Binding ConfirmationsStatus}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ConfirmationSafetyText}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card" IsVisible="{Binding IsConfirmationActionPending}" Background="#2A2118" BorderBrush="#765D38">
+                            <StackPanel Spacing="14">
+                                <TextBlock Text="{Binding Text.ConfirmDecision}" Classes="eyebrow" />
+                                <TextBlock Text="{Binding ConfirmationActionPrompt}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                    <Button Command="{Binding CancelConfirmationActionCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                                    <Button Grid.Column="1" Classes="primary" Command="{Binding ConfirmConfirmationActionCommand}"><TextBlock Text="{Binding Text.ConfirmDecision}" TextWrapping="Wrap" /></Button>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid></ScrollViewer>
+            </Grid>
+
+            <Grid IsVisible="{Binding IsQrVisible}" RowDefinitions="Auto,*">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="12" Margin="8,4,8,18">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Text.QrTitle}" FontSize="27" FontWeight="Bold" />
+                        <TextBlock Text="{Binding Text.QrSubtitle}" Classes="muted" Margin="0,5,0,0" />
+                    </StackPanel>
+                    <Button Grid.Row="1" Command="{Binding ShowDashboardCommand}"><TextBlock Text="{Binding Text.BackToDashboard}" TextWrapping="Wrap" /></Button>
+                </Grid>
+
+                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled"><Grid ColumnDefinitions="1.15*,0.85*" ColumnSpacing="16" Classes="responsive-columns" RowSpacing="16">
+                    <Border Classes="card">
+                        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="16">
+                            <TextBlock Text="{Binding Text.QrSelectedAccount}" Classes="eyebrow" />
+                            <ComboBox Grid.Row="1" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" HorizontalAlignment="Stretch" Padding="12,10">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:AccountItemViewModel">
+                                        <Grid ColumnDefinitions="40,*,Auto" Margin="4">
+                                            <Border Width="34" Height="34" CornerRadius="10" Background="#263650">
+                                                <TextBlock Text="{Binding Initial}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="10,0,16,0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding SteamId}" Classes="muted" FontSize="11" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding SessionLabel}" Classes="muted" FontSize="11" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <Border Grid.Row="2" CornerRadius="18" Background="#0D1420" BorderBrush="#27344A" BorderThickness="1" Padding="26">
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="18" MaxWidth="480">
+                                    <Border Width="78" Height="78" CornerRadius="24" Background="#1C3158" BorderBrush="#456EB9" BorderThickness="1">
+                                        <TextBlock Text="QR" FontSize="24" FontWeight="Bold" Foreground="#8EACFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="{Binding Text.QrHowTo}" FontSize="17" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding QrStatus}" Classes="muted" TextAlignment="Center" TextWrapping="Wrap" />
+                                    <ProgressBar IsVisible="{Binding IsQrBusy}" IsIndeterminate="True" Width="220" Height="5" />
+                                    <Button Classes="primary" Command="{Binding ScanQrCommand}" IsEnabled="{Binding !IsQrBusy}" MinWidth="250"><TextBlock Text="{Binding Text.ScanScreen}" TextWrapping="Wrap" /></Button>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Grid.Row="3" Text="{Binding Text.QrPrivacy}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Spacing="16">
+                        <Border Classes="card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="{Binding Text.SelectedAccount}" Classes="eyebrow" />
+                                <TextBlock Text="{Binding SelectedAccountName}" FontSize="22" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding SelectedAccount.SteamId}" Classes="muted" />
+                                <Border IsVisible="{Binding HasSelectedAccount}" Background="#193F36" CornerRadius="12" Padding="12,7" HorizontalAlignment="Left">
+                                    <TextBlock Text="{Binding SelectedAccount.SessionLabel}" Foreground="{StaticResource SuccessBrush}" FontSize="12" FontWeight="SemiBold" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="card" Background="#101A2A" BorderBrush="#29446F">
+                            <StackPanel Spacing="9">
+                                <TextBlock Text="{Binding Text.Security}" Classes="eyebrow" />
+                                <TextBlock Text="{Binding Text.ProtectedLocally}" FontSize="18" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Text.QrPrivacy}" Classes="muted" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid></ScrollViewer>
+            </Grid>
+
+            <Grid IsVisible="{Binding IsCloudVisible}" RowDefinitions="Auto,*">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="12" Margin="8,4,8,18">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Text.CloudTitle}" FontSize="27" FontWeight="Bold" />
+                        <TextBlock Text="{Binding Text.CloudSubtitle}" Classes="muted" Margin="0,5,0,0" />
+                    </StackPanel>
+                    <Button Grid.Row="1" Command="{Binding ShowDashboardCommand}"><TextBlock Text="{Binding Text.BackToDashboard}" TextWrapping="Wrap" /></Button>
+                </Grid>
+
+                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled"><Grid ColumnDefinitions="1.2*,0.8*" ColumnSpacing="16" Classes="responsive-columns" RowSpacing="16">
+                    <Border Classes="card">
+                        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+                            <TextBlock Text="{Binding Text.Provider}" Classes="eyebrow" />
+                            <ComboBox Grid.Row="1" ItemsSource="{Binding CloudProviderOptions}" SelectedIndex="{Binding SelectedCloudProviderIndex}" />
+                            <StackPanel Grid.Row="2" Grid.RowSpan="3" Spacing="10">
+                                <StackPanel IsVisible="{Binding IsWebDavProvider}" Spacing="10">
+                                    <TextBox Text="{Binding WebDavEndpoint}" Watermark="{Binding Text.WebDavEndpoint}" />
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                        <TextBox Text="{Binding WebDavUsername}" Watermark="{Binding Text.Username}" />
+                                        <TextBox Grid.Column="1" Text="{Binding WebDavPassword}" PasswordChar="●" Watermark="{Binding Text.Password}" />
+                                    </Grid>
+                                    <TextBox Text="{Binding WebDavRemotePath}" Watermark="{Binding Text.RemoteFolder}" />
+                                </StackPanel>
+                                <StackPanel IsVisible="{Binding IsS3Provider}" Spacing="10">
+                                    <TextBox Text="{Binding S3Endpoint}" Watermark="S3 endpoint (HTTPS)" />
+                                    <TextBox Text="{Binding S3Bucket}" Watermark="Bucket" />
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                        <TextBox Text="{Binding S3AccessKey}" Watermark="Access key" />
+                                        <TextBox Grid.Column="1" Text="{Binding S3SecretKey}" PasswordChar="●" Watermark="Secret key" />
+                                    </Grid>
+                                    <TextBox Text="{Binding S3RemotePath}" Watermark="{Binding Text.RemoteFolder}" />
+                                </StackPanel>
+                                <StackPanel IsVisible="{Binding IsDropboxProvider}" Spacing="10">
+                                    <TextBox Text="{Binding DropboxAccessToken}" PasswordChar="●" Watermark="Dropbox access token" />
+                                    <TextBox Text="{Binding DropboxRemotePath}" Watermark="{Binding Text.RemoteFolder}" />
+                                </StackPanel>
+                                <StackPanel IsVisible="{Binding IsOneDriveProvider}" Spacing="10">
+                                    <TextBox Text="{Binding OneDriveClientId}" Watermark="Microsoft Entra Client ID" />
+                                    <TextBox Text="{Binding OneDriveRemotePath}" Watermark="{Binding Text.RemoteFolder}" />
+                                </StackPanel>
+                                <StackPanel IsVisible="{Binding IsGoogleDriveProvider}" Spacing="10">
+                                    <TextBox Text="{Binding GoogleDriveClientId}" Watermark="Google OAuth Client ID" />
+                                    <TextBox Text="{Binding GoogleDriveRemotePath}" Watermark="{Binding Text.RemoteFolder}" />
+                                </StackPanel>
+                                <Button IsVisible="{Binding IsOAuthCloudProvider}" Classes="primary" Command="{Binding AuthenticateCloudAccountCommand}"><TextBlock Text="{Binding ConnectCloudAccountLabel}" TextWrapping="Wrap" /></Button>
+                            </StackPanel>
+                            <TextBlock Grid.Row="5" Text="{Binding Text.PasswordSessionOnly}" Classes="muted" TextWrapping="Wrap" FontSize="12" />
+                            <Grid Grid.Row="6" ColumnDefinitions="*,*" ColumnSpacing="10" RowDefinitions="Auto,Auto" RowSpacing="8">
+                                <Button Command="{Binding TestCloudCommand}" Grid.Column="0" Grid.Row="0"><TextBlock Text="{Binding Text.TestConnection}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Column="1" Command="{Binding PreviewCloudPullCommand}" Grid.Row="0"><TextBlock Text="{Binding Text.PullPreview}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Column="0" Classes="primary" Command="{Binding PushCloudCommand}" Grid.Row="1"><TextBlock Text="{Binding PushCloudLabel}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Column="1" Command="{Binding SavePreferencesCommand}" Grid.Row="1"><TextBlock Text="{Binding Text.SaveProfile}" TextWrapping="Wrap" /></Button>
+                            </Grid>
+                            <Button Grid.Row="7" Classes="primary" Command="{Binding PrepareCloudImportCommand}"><TextBlock Text="{Binding Text.PrepareImport}" TextWrapping="Wrap" /></Button>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Column="1" Classes="card">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="{Binding Text.CloudSync}" Classes="eyebrow" />
+                            <ProgressBar IsVisible="{Binding IsCloudBusy}" IsIndeterminate="True" Height="5" />
+                            <Button Command="{Binding OpenCloudPairingCommand}"><TextBlock Text="{Binding CloudPairingTitle}" /></Button>
+                            <TextBlock Text="{Binding CloudStatus}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <Button Command="{Binding DownloadCredentialsCommand}" IsEnabled="{Binding !IsCredentialDownloadBusy}"><TextBlock Text="{Binding DownloadCredentialsLabel}" TextWrapping="Wrap" /></Button>
+                            <TextBlock Text="{Binding CredentialsStatus}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding CloudPreviewSummary}" Classes="muted" TextWrapping="Wrap" />
+                            <Border Background="#12233B" BorderBrush="#2A456F" BorderThickness="1" CornerRadius="14" Padding="14">
+                                <TextBlock Text="{Binding Text.PreviewSafety}" Classes="muted" TextWrapping="Wrap" />
+                            </Border>
+                            <Border IsVisible="{Binding IsImportConfirmationVisible}" Background="#2A1F18" BorderBrush="#7B5C36" BorderThickness="1" CornerRadius="14" Padding="14">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Text="{Binding ImportConfirmationText}" TextWrapping="Wrap" />
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                        <Button Command="{Binding CancelCloudImportCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                                        <Button Grid.Column="1" Classes="primary" Command="{Binding ConfirmCloudImportCommand}"><TextBlock Text="{Binding Text.ConfirmImport}" TextWrapping="Wrap" /></Button>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid></ScrollViewer>
+            </Grid>
+
+            <Grid IsVisible="{Binding IsCredentialsVisible}" RowDefinitions="Auto,*">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="12" Margin="8,4,8,18">
+                    <StackPanel>
+                        <TextBlock Text="{Binding CredentialsTitle}" FontSize="27" FontWeight="Bold" />
+                        <TextBlock Text="{Binding CredentialsSubtitle}" Classes="muted" Margin="0,5,0,0" />
+                    </StackPanel>
+                    <Button Grid.Row="1" Command="{Binding ShowDashboardCommand}"><TextBlock Text="{Binding Text.BackToDashboard}" TextWrapping="Wrap" /></Button>
+                </Grid>
+                <Border Grid.Row="1" Classes="card" Padding="16">
+                    <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
+                        <Border Background="#111A28" BorderBrush="#2B3B54" BorderThickness="1" CornerRadius="16" Padding="18,16">
+                            <Grid ColumnDefinitions="*" ColumnSpacing="18" RowDefinitions="Auto,Auto" RowSpacing="12">
+                                <StackPanel VerticalAlignment="Center" Spacing="5">
+                                    <TextBlock Text="{Binding CredentialVaultSectionLabel}" Classes="eyebrow" />
+                                    <TextBlock Text="{Binding CredentialVaultSummaryTitle}" FontSize="20" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding CredentialsStatus}" Classes="muted" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center" Grid.Row="1" Classes="actions">
+                                    <Button IsVisible="{Binding IsCredentialVaultMissing}" Classes="primary" Command="{Binding BeginCredentialSetupCommand}" Margin="0,0,8,8"><TextBlock Text="{Binding CreateCredentialsLabel}" TextWrapping="Wrap" /></Button>
+                                    <Button IsVisible="{Binding IsCredentialVaultReady}" Classes="primary" Command="{Binding BeginAddCredentialCommand}" ToolTip.Tip="{Binding AddCredentialLabel}" Margin="0,0,8,8">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <PathIcon Width="16" Height="16" Data="M10,4 H14 V10 H20 V14 H14 V20 H10 V14 H4 V10 H10 Z" />
+                                            <TextBlock Text="{Binding AddCredentialLabel}" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button IsVisible="{Binding IsCredentialVaultReady}" Command="{Binding ShowAutoLoginAllPanelCommand}" Margin="0,0,8,8"><TextBlock Text="{Binding AutoLoginAllLabel}" TextWrapping="Wrap" /></Button>
+                                    <Button IsVisible="{Binding IsCredentialVaultReady}" Command="{Binding SyncCredentialsCommand}" Margin="0,0,8,8"><TextBlock Text="{Binding SyncCredentialsLabel}" TextWrapping="Wrap" /></Button>
+                                </WrapPanel>
+                            </Grid>
+                        </Border>
+                        <Border Grid.Row="1" Background="#0D1521" BorderBrush="#243249" BorderThickness="1" CornerRadius="14" Padding="10">
+                            <Grid ColumnDefinitions="*,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="8">
+                                <Button Command="{Binding PickCredentialVaultCommand}"><TextBlock Text="{Binding ImportCredentialsLabel}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Column="1" IsVisible="{Binding IsCredentialVaultReady}" Command="{Binding PickPlainCredentialImportCommand}"><TextBlock Text="{Binding ImportLegacyCredentialsLabel}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Column="2" IsVisible="{Binding IsCredentialVaultReady}" Width="42" Padding="10" Command="{Binding AskDeleteCredentialVaultCommand}" ToolTip.Tip="{Binding DeleteCredentialsVaultLabel}" Foreground="#FF8996" BorderBrush="#6A3440">
+                                    <PathIcon Width="17" Height="17" Data="M8,3 H16 L17,5 H21 V8 H3 V5 H7 Z M6,9 H18 L17,21 H7 Z" />
+                                </Button>
+                                <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Spacing="8">
+                                    <Button Command="{Binding DownloadCredentialsCommand}" IsEnabled="{Binding !IsCredentialDownloadBusy}"><TextBlock Text="{Binding DownloadCredentialsLabel}" TextWrapping="Wrap" /></Button>
+                                    <ProgressBar IsVisible="{Binding IsCredentialDownloadBusy}" IsIndeterminate="True" Height="4" />
+                                    <Button IsVisible="{Binding IsCredentialVaultReady}" Click="ConfirmCredentialsUpgrade"><TextBlock Text="{Binding UpgradeCredentialsLabel}" TextWrapping="Wrap" /></Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Grid.Row="2" IsVisible="{Binding IsCredentialEditorVisible}" Background="#121A27" BorderBrush="#49668E" BorderThickness="1" CornerRadius="14" Padding="14">
+                            <Grid ColumnDefinitions="1.15*,1*,1*,Auto,Auto" ColumnSpacing="12">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{Binding CredentialAccountLabel}" Classes="eyebrow" />
+                                    <ComboBox ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" MinWidth="180" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:AccountItemViewModel">
+                                                <TextBlock Text="{Binding Name}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock Text="{Binding CredentialUsernameLabel}" Classes="eyebrow" />
+                                    <TextBox Text="{Binding CredentialEditorUsername}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="6">
+                                    <TextBlock Text="{Binding CredentialPasswordLabel}" Classes="eyebrow" />
+                                    <TextBox Text="{Binding CredentialEditorPassword}" PasswordChar="●" />
+                                </StackPanel>
+                                <Button Grid.Column="3" Classes="primary" VerticalAlignment="Bottom" Command="{Binding SaveCredentialCommand}"><TextBlock Text="{Binding SaveCredentialLabel}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Column="4" VerticalAlignment="Bottom" Command="{Binding CancelCredentialEditorCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                            </Grid>
+                        </Border>
+                        <Grid Grid.Row="3">
+                            <Border IsVisible="{Binding IsCredentialEmptyStateVisible}" Background="#0D1521" BorderBrush="#243249" BorderThickness="1" CornerRadius="16" Padding="32" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="9" MaxWidth="440">
+                                    <Border Width="54" Height="54" CornerRadius="27" Background="#1C2940" HorizontalAlignment="Center">
+                                        <PathIcon Width="24" Height="24" Foreground="#A97AFF" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M10,4 H14 V10 H20 V14 H14 V20 H10 V14 H4 V10 H10 Z" />
+                                    </Border>
+                                    <TextBlock Text="{Binding EmptyCredentialsTitle}" FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                                    <TextBlock Text="{Binding EmptyCredentialsSubtitle}" Classes="muted" TextAlignment="Center" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="1.35*,1.2*,1.25*,0.9*,Auto,Auto" ColumnSpacing="12" Margin="14,0,14,2">
+                                        <TextBlock Text="{Binding CredentialAccountHeader}" Classes="eyebrow" />
+                                        <TextBlock Grid.Column="1" Text="{Binding CredentialLoginHeader}" Classes="eyebrow" />
+                                        <TextBlock Grid.Column="2" Text="{Binding CredentialPasswordHeader}" Classes="eyebrow" />
+                                        <TextBlock Grid.Column="3" Text="{Binding CredentialStateHeader}" Classes="eyebrow" />
+                                    </Grid>
+                                <ItemsControl ItemsSource="{Binding CredentialAccounts}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:AccountCredentialRowViewModel">
+                                            <Border Background="#121A27" BorderBrush="#26334A" BorderThickness="1" CornerRadius="12" Padding="14,11" Margin="0,0,0,8">
+                                                <Grid ColumnDefinitions="1.35*,1.2*,1.25*,0.9*,Auto,Auto" ColumnSpacing="12">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding AccountName}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding SteamId}" Classes="muted" FontSize="11" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Username}" VerticalAlignment="Center" />
+                                                    <TextBox Grid.Column="2" Text="{Binding Password}" PasswordChar="●" Watermark="••••••••" VerticalContentAlignment="Center" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding Status}" Classes="muted" VerticalAlignment="Center" />
+                                                    <Button Grid.Column="4" Classes="primary" Padding="14,9" IsEnabled="{Binding $parent[Window].DataContext.IsCredentialVaultReady}" Command="{Binding $parent[Window].DataContext.SaveAccountCredentialCommand}" CommandParameter="{Binding}"><TextBlock Text="{Binding SaveLabel}" TextWrapping="Wrap" /></Button>
+                                                    <Button Grid.Column="5" Width="40" Padding="9" IsEnabled="{Binding HasSavedPassword}" Command="{Binding $parent[Window].DataContext.RemoveAccountCredentialCommand}" CommandParameter="{Binding}" ToolTip.Tip="{Binding $parent[Window].DataContext.RemoveLabel}" Foreground="#FF8996" BorderBrush="#6A3440">
+                                                        <PathIcon Width="16" Height="16" Data="M8,3 H16 L17,5 H21 V8 H3 V5 H7 Z M6,9 H18 L17,21 H7 Z" />
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid IsVisible="{Binding IsMonitoringVisible}" RowDefinitions="Auto,*">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="12" Margin="8,4,8,18">
+                    <StackPanel>
+                        <TextBlock Text="{Binding MonitoringTitle}" FontSize="27" FontWeight="Bold" />
+                        <TextBlock Text="{Binding MonitoringSubtitle}" Classes="muted" Margin="0,5,0,0" />
+                    </StackPanel>
+                    <WrapPanel Grid.Row="1" Classes="actions" VerticalAlignment="Center">
+                        <Button Command="{Binding ShowDashboardCommand}" Margin="0,0,8,8"><TextBlock Text="{Binding Text.BackToDashboard}" TextWrapping="Wrap" /></Button>
+                        <Button Classes="primary" Command="{Binding RefreshMonitoringCommand}" Margin="0,0,8,8"><TextBlock Text="{Binding MonitoringRefresh}" TextWrapping="Wrap" /></Button>
+                    </WrapPanel>
+                </Grid>
+
+                <Border Grid.Row="1" Classes="card" Padding="16">
+                    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
+                        <Grid ColumnDefinitions="2.1*,1.15*,1.45*,0.7*,0.7*,0.9*" Margin="14,2">
+                            <TextBlock Text="{Binding MonitoringAccountHeader}" Classes="eyebrow" />
+                            <TextBlock Grid.Column="1" Text="{Binding MonitoringSessionHeader}" Classes="eyebrow" />
+                            <TextBlock Grid.Column="2" Text="VAC" Classes="eyebrow" />
+                            <TextBlock Grid.Column="3" Text="LVL" Classes="eyebrow" />
+                            <TextBlock Grid.Column="4" Text="{Binding MonitoringGamesHeader}" Classes="eyebrow" />
+                            <TextBlock Grid.Column="5" Text="{Binding MonitoringInventoryHeader}" Classes="eyebrow" />
+                        </Grid>
+                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="4,0">
+                            <TextBlock Text="{Binding MonitoringStatus}" Classes="muted" VerticalAlignment="Center" />
+                            <ProgressBar Grid.Column="1" IsVisible="{Binding IsMonitoringBusy}" IsIndeterminate="True" Width="180" Height="5" />
+                        </Grid>
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding MonitoringAccounts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:MonitoringItemViewModel">
+                                        <Border Background="#121A27" BorderBrush="#26334A" BorderThickness="1" CornerRadius="12" Padding="14,11" Margin="0,0,0,8">
+                                            <Grid ColumnDefinitions="2.1*,1.15*,1.45*,0.7*,0.7*,0.9*">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding AccountName}" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding SteamId}" Classes="muted" FontSize="11" Margin="0,3,0,0" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="{Binding Session}" VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Vac}" />
+                                                    <TextBlock Text="{Binding Detail}" Classes="muted" FontSize="10" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="3" Text="{Binding Level}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="4" Text="{Binding Games}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="5" Text="{Binding Inventory}" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid IsVisible="{Binding IsDevicesVisible}" RowDefinitions="Auto,*">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="12" Margin="8,4,8,18">
+                    <StackPanel>
+                        <TextBlock Text="{Binding DevicesTitle}" FontSize="27" FontWeight="Bold" />
+                        <TextBlock Text="{Binding DevicesSubtitle}" Classes="muted" Margin="0,5,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Row="1" Command="{Binding ShowDashboardCommand}"><TextBlock Text="{Binding Text.BackToDashboard}" TextWrapping="Wrap" /></Button>
+                </Grid>
+
+                <Grid Grid.Row="1" ColumnDefinitions="1.05*,0.95*" RowDefinitions="Auto,*" ColumnSpacing="16" RowSpacing="16">
+                    <Border Classes="card" Padding="22">
+                        <StackPanel Spacing="15">
+                            <TextBlock Text="DEVICE REGISTRY" Classes="eyebrow" />
+                            <TextBlock Text="{Binding DeviceRegistryStatus}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
+                                <TextBlock Text="{Binding DeviceRoleLabel}" Classes="muted" />
+                                <TextBlock Grid.Column="1" Text="{Binding DeviceRole}" FontWeight="SemiBold" />
+                                <TextBlock Grid.Row="1" Text="{Binding DeviceAccountsLabel}" Classes="muted" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DeviceGrantedAccounts}" FontWeight="SemiBold" />
+                                <TextBlock Grid.Row="2" Text="{Binding DeviceExpiresLabel}" Classes="muted" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DeviceExpires}" FontWeight="SemiBold" />
+                            </Grid>
+                            <StackPanel IsVisible="{Binding IsAdminPinSetupVisible}" Spacing="8">
+                                <TextBlock Text="{Binding AdminPinLabel}" Classes="eyebrow" />
+                                <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="8">
+                                    <TextBox Text="{Binding AdminPin}" PasswordChar="●" MaxLength="12" />
+                                    <TextBox Grid.Column="1" Text="{Binding AdminPinConfirmation}" PasswordChar="●" MaxLength="12" />
+                                    <Button Grid.Column="2" Command="{Binding ConfigureAdminPinCommand}"><TextBlock Text="{Binding ConfigureAdminPinLabel}" TextWrapping="Wrap" /></Button>
+                                </Grid>
+                            </StackPanel>
+                            <TextBlock Text="{Binding AdminPinStatus}" Classes="muted" TextWrapping="Wrap" />
+                            <Button Command="{Binding RefreshDeviceRegistryCommand}" HorizontalAlignment="Left"><TextBlock Text="{Binding ReloadRegistryLabel}" TextWrapping="Wrap" /></Button>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Classes="card" Padding="22">
+                        <StackPanel Spacing="15">
+                            <TextBlock Text="{Binding RelayLabel}" Classes="eyebrow" />
+                            <TextBlock Text="{Binding DeviceRelayEndpoint}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <Border Background="#10243A" BorderBrush="#294F77" BorderThickness="1" CornerRadius="14" Padding="15">
+                                <TextBlock Text="{Binding RelayHealthStatus}" Classes="muted" TextWrapping="Wrap" />
+                            </Border>
+                            <ProgressBar IsVisible="{Binding IsRelayCheckBusy}" IsIndeterminate="True" Height="5" />
+                            <Button Classes="primary" Command="{Binding CheckPairingRelayCommand}"><TextBlock Text="{Binding CheckRelayLabel}" TextWrapping="Wrap" /></Button>
+                            <TextBlock Text="{Binding IncomingCommandsHelp}" Classes="muted" TextWrapping="Wrap" />
+                            <Button Command="{Binding RefreshIncomingCommandsCommand}"><TextBlock Text="{Binding IncomingCommandsLabel}" TextWrapping="Wrap" /></Button>
+                            <TextBlock Text="{Binding IncomingCommandsStatus}" TextWrapping="Wrap" />
+                            <ListBox ItemsSource="{Binding IncomingCommandRows}" MaxHeight="160" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="1" Classes="card" Padding="16">
+                        <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="11">
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+                                <StackPanel>
+                                    <TextBlock Text="TRUSTED DEVICES" Classes="eyebrow" />
+                                    <TextBlock Text="{Binding DeviceListStatus}" Classes="muted" Margin="0,5,0,0" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Command="{Binding RefreshDeviceListCommand}"><TextBlock Text="{Binding RefreshDevicesLabel}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Column="2" Command="{Binding OpenJoinPairingCommand}"><TextBlock Text="{Binding JoinDeviceLabel}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Column="3" Classes="primary" Command="{Binding OpenPairingCommand}"><TextBlock Text="{Binding AddDeviceLabel}" TextWrapping="Wrap" /></Button>
+                            </Grid>
+                            <ProgressBar Grid.Row="1" IsVisible="{Binding IsDeviceListBusy}" IsIndeterminate="True" Height="5" />
+                            <ListBox Grid.Row="2" ItemsSource="{Binding RegistryDevices}" SelectedItem="{Binding SelectedRegistryDevice}" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:RegistryDeviceItemViewModel">
+                                            <Border Background="#121A27" BorderBrush="#26334A" BorderThickness="1" CornerRadius="12" Padding="14,11" Margin="0,0,0,8">
+                                                <Grid ColumnDefinitions="1.7*,1*,1.2*,1.1*,0.8*">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding DeviceId}" Classes="muted" FontSize="10" TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Role}" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding LastSeen}" Classes="muted" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding Expires}" Classes="muted" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="4" Text="{Binding State}" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <Grid Grid.Row="3" ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                                <Button Command="{Binding PrepareDeviceActionCommand}" CommandParameter="Lock"><TextBlock Text="{Binding LockDeviceLabel}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Column="1" Command="{Binding PrepareDeviceActionCommand}" CommandParameter="Revoke"><TextBlock Text="{Binding RevokeDeviceLabel}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Column="2" Command="{Binding PrepareDeviceActionCommand}" CommandParameter="WipeLocalData"><TextBlock Text="{Binding WipeDeviceLabel}" TextWrapping="Wrap" /></Button>
+                            </Grid>
+                            <TextBlock Grid.Row="4" Text="{Binding DeviceActionStatus}" Classes="muted" TextWrapping="Wrap" />
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="1" Grid.Column="1" Classes="card" Padding="16">
+                        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="11">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding SecurityActivityLabel}" Classes="eyebrow" />
+                                    <TextBlock Text="{Binding AuditStatus}" Classes="muted" Margin="0,5,0,0" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Command="{Binding RefreshAuditCommand}"><TextBlock Text="{Binding RefreshActivityLabel}" TextWrapping="Wrap" /></Button>
+                            </Grid>
+                            <ProgressBar Grid.Row="1" IsVisible="{Binding IsAuditBusy}" IsIndeterminate="True" Height="5" />
+                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding RegistryAuditEvents}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:RegistryAuditItemViewModel">
+                                            <Border Background="#121A27" BorderBrush="#26334A" BorderThickness="1" CornerRadius="12" Padding="13,10" Margin="0,0,0,8">
+                                                <Grid ColumnDefinitions="1.45*,1.05*,Auto">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Action}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding Device}" Classes="muted" FontSize="10" TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Occurred}" Classes="muted" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding Country}" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <Border Grid.RowSpan="2" Background="#D9080C13" IsVisible="{Binding IsDeviceActionConfirmationVisible}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                    <Border Classes="card" Width="470" Padding="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="{Binding ConfirmDeviceActionLabel}" FontSize="22" FontWeight="Bold" />
+                            <TextBlock Text="{Binding DeviceActionPrompt}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding AdminPinLabel}" Classes="eyebrow" />
+                            <TextBox Text="{Binding AdminPin}" PasswordChar="●" MaxLength="12" />
+                            <TextBlock Text="{Binding DeviceActionStatus}" Classes="muted" TextWrapping="Wrap" />
+                            <ProgressBar IsVisible="{Binding IsDeviceActionBusy}" IsIndeterminate="True" Height="5" />
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                <Button Command="{Binding CancelDeviceActionCommand}"><TextBlock Text="{Binding CancelLabel}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Column="1" Classes="primary" Command="{Binding ConfirmDeviceActionCommand}"><TextBlock Text="{Binding ConfirmDeviceActionLabel}" TextWrapping="Wrap" /></Button>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </Border>
+
+                <Border Grid.RowSpan="2" Background="#E0080C13" IsVisible="{Binding IsJoinPairingVisible}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                    <Border Classes="card" Width="650" Padding="26" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <StackPanel Spacing="15">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding JoinPairingTitle}" FontSize="24" FontWeight="Bold" />
+                                    <TextBlock Text="{Binding JoinPairingHint}" Classes="muted" Margin="0,6,0,0" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Command="{Binding CloseJoinPairingCommand}"><TextBlock Text="{Binding CancelLabel}" TextWrapping="Wrap" /></Button>
+                            </Grid>
+                            <StackPanel Spacing="6">
+                                    <TextBlock Text="1. Передайте этот код идентичности напрямую Admin (не через relay)" TextWrapping="Wrap" />
+                                    <TextBox Text="{Binding RecipientIdentityCode}" IsReadOnly="True" MaxHeight="60" />
+                                    <TextBlock Text="2. Получите QR непосредственно с экрана Admin. Он закрепляет ключ Admin." TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding InvitationPayloadLabel}" Classes="eyebrow" />
+                                <TextBox Text="{Binding JoinPairingPayload}" Watermark="sdapp://device-enroll?..." TextWrapping="NoWrap" />
+                                <Button Command="{Binding ScanJoinPairingQrCommand}" HorizontalAlignment="Left"><TextBlock Text="{Binding ScanInvitationLabel}" TextWrapping="Wrap" /></Button>
+                            </StackPanel>
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{Binding JoinVerificationCodeLabel}" Classes="eyebrow" />
+                                    <TextBox Text="{Binding JoinVerificationCode}" MaxLength="6" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock Text="{Binding JoinVaultPasswordLabel}" Classes="eyebrow" />
+                                    <TextBox Text="{Binding JoinVaultPassword}" PasswordChar="●" />
+                                </StackPanel>
+                            </Grid>
+                            <Border Background="#10243A" BorderBrush="#294F77" BorderThickness="1" CornerRadius="12" Padding="12">
+                                <TextBlock Text="{Binding JoinPairingStatus}" Classes="muted" TextWrapping="Wrap" />
+                            </Border>
+                            <ProgressBar IsVisible="{Binding IsJoinPairingBusy}" IsIndeterminate="True" Height="5" />
+                            <Button Classes="primary" Command="{Binding ClaimPairingInvitationCommand}"><TextBlock Text="{Binding JoinDeviceLabel}" TextWrapping="Wrap" /></Button>
+                        </StackPanel>
+                    </Border>
+                </Border>
+
+                <Border Grid.RowSpan="2" Background="#E0080C13" IsVisible="{Binding IsPairingVisible}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                    <Border Classes="card" Width="820" Height="650" Padding="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="15">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding PairingTitle}" FontSize="24" FontWeight="Bold" />
+                                    <TextBlock Text="{Binding PairingRoleHint}" Classes="muted" Margin="0,5,0,0" TextWrapping="Wrap" MaxWidth="680" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Command="{Binding ClosePairingCommand}"><TextBlock Text="{Binding CancelLabel}" TextWrapping="Wrap" /></Button>
+                            </Grid>
+
+                            <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{Binding PairingRoleLabel}" Classes="eyebrow" />
+                                    <TextBox Text="{Binding PairingRecipientCode}" Watermark="Код идентичности получателя: sdapp-recipient-v2:..." />
+                                    <ComboBox ItemsSource="{Binding PairingRoleOptions}" SelectedIndex="{Binding SelectedPairingRoleIndex}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6" IsVisible="{Binding !IsPairingQrVisible}">
+                                    <TextBlock Text="{Binding AdminPinLabel}" Classes="eyebrow" />
+                                    <TextBox Text="{Binding PairingAdminPin}" PasswordChar="●" MaxLength="12" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Grid.Row="2" ColumnDefinitions="1.05*,0.95*" ColumnSpacing="16">
+                                <Border Background="#101722" BorderBrush="#26334A" BorderThickness="1" CornerRadius="14" Padding="12" IsVisible="{Binding IsPairingAccountSelectionVisible}">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding PairingAccounts}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:PairingAccountItemViewModel">
+                                                    <Border Background="#121A27" CornerRadius="10" Padding="10" Margin="0,0,0,6">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                                            <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="2" Text="{Binding SteamId}" Classes="muted" VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+
+                                <Border Grid.ColumnSpan="2" Background="#FFFFFF" CornerRadius="16" Padding="12" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsPairingQrVisible}">
+                                    <Image Source="{Binding PairingQrImage}" Width="320" Height="320" Stretch="Uniform" />
+                                </Border>
+                            </Grid>
+
+                            <StackPanel Grid.Row="3" Spacing="10">
+                                <TextBlock Text="{Binding PairingStatus}" Classes="muted" TextWrapping="Wrap" />
+                                <ProgressBar IsVisible="{Binding IsPairingBusy}" IsIndeterminate="True" Height="5" />
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                    <Button Classes="primary" Command="{Binding CreatePairingInvitationCommand}" IsVisible="{Binding !IsPairingQrVisible}"><TextBlock Text="{Binding CreatePairingQrLabel}" TextWrapping="Wrap" /></Button>
+                                    <Button Grid.Column="1" Command="{Binding ShowPairingVerificationCodeCommand}" IsVisible="{Binding IsPairingQrVisible}"><TextBlock Text="{Binding ShowVerificationCodeLabel}" TextWrapping="Wrap" /></Button>
+                                </Grid>
+                                <Border Background="#10243A" BorderBrush="#294F77" BorderThickness="1" CornerRadius="12" Padding="12" IsVisible="{Binding IsPairingVerificationVisible}">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding PairingVerificationLabel}" Classes="eyebrow" HorizontalAlignment="Center" />
+                                        <TextBlock Text="{Binding PairingVerificationCode}" FontSize="30" FontWeight="Bold" LetterSpacing="4" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Border>
+            </Grid>
+
+            <Grid IsVisible="{Binding IsEncryptionVisible}" RowDefinitions="Auto,*">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="12" Margin="8,4,8,18">
+                    <StackPanel>
+                        <TextBlock Text="{Binding EncryptionTitle}" FontSize="27" FontWeight="Bold" />
+                        <TextBlock Text="{Binding EncryptionSubtitle}" Classes="muted" Margin="0,5,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Row="1" Command="{Binding ShowDashboardCommand}"><TextBlock Text="{Binding Text.BackToDashboard}" TextWrapping="Wrap" /></Button>
+                </Grid>
+
+                <Grid Grid.Row="1" ColumnDefinitions="1.1*,0.9*" ColumnSpacing="16">
+                    <Border Classes="card" Padding="22">
+                        <StackPanel Spacing="16">
+                            <TextBlock Text="{Binding Text.Security}" Classes="eyebrow" />
+                            <TextBlock Text="{Binding VaultProtectionStatus}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <Border Background="#10243A" BorderBrush="#294F77" BorderThickness="1" CornerRadius="14" Padding="15">
+                                <TextBlock Text="{Binding EncryptionSubtitle}" Classes="muted" TextWrapping="Wrap" />
+                            </Border>
+                            <ProgressBar IsVisible="{Binding IsVaultProtectionBusy}" IsIndeterminate="True" Height="5" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Classes="card" Padding="22">
+                        <StackPanel Spacing="13">
+                            <TextBlock Text="{Binding EncryptionCurrentPasswordLabel}" Classes="eyebrow" />
+                            <TextBox Text="{Binding VaultProtectionCurrentPassword}" PasswordChar="●" />
+                            <TextBlock Text="{Binding EncryptionNewPasswordLabel}" Classes="eyebrow" />
+                            <TextBox Text="{Binding VaultProtectionNewPassword}" PasswordChar="●" />
+                            <TextBlock Text="{Binding EncryptionConfirmPasswordLabel}" Classes="eyebrow" />
+                            <TextBox Text="{Binding VaultProtectionConfirmPassword}" PasswordChar="●" />
+                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="9" RowSpacing="9" Margin="0,6,0,0">
+                                <Button Classes="primary" Command="{Binding PrepareEnableEncryptionCommand}"><TextBlock Text="{Binding EnableEncryptionLabel}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Column="1" Command="{Binding PrepareChangeEncryptionCommand}"><TextBlock Text="{Binding ChangeEncryptionLabel}" TextWrapping="Wrap" /></Button>
+                                <Button Grid.Row="1" Grid.ColumnSpan="2" Command="{Binding PrepareDisableEncryptionCommand}"><TextBlock Text="{Binding DisableEncryptionLabel}" TextWrapping="Wrap" /></Button>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <Grid IsVisible="{Binding IsSettingsVisible}" RowDefinitions="Auto,*">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="12" Margin="8,4,8,18">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Text.Settings}" FontSize="27" FontWeight="Bold" />
+                        <TextBlock Text="{Binding Text.SettingsSubtitle}" Classes="muted" Margin="0,5,0,0" />
+                    </StackPanel>
+                    <Button Grid.Row="1" Command="{Binding ShowDashboardCommand}"><TextBlock Text="{Binding Text.BackToDashboard}" TextWrapping="Wrap" /></Button>
+                </Grid>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="16" Margin="0,0,8,8">
+                    <Border Grid.Row="3" Grid.ColumnSpan="2" Classes="card">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="{Binding UpdatesTitle}" FontSize="20" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding UpdateChannelLabel}" />
+                            <CheckBox IsChecked="{Binding CheckUpdatesOnStartup}" Content="{Binding StartupUpdatesLabel}" />
+                            <TextBlock Text="{Binding UpdateHelp}" TextWrapping="Wrap" Classes="muted" />
+                            <WrapPanel>
+                                <Button Command="{Binding CheckForUpdatesCommand}"><TextBlock Text="{Binding CheckUpdatesLabel}" TextWrapping="Wrap" /></Button>
+                                <Button Command="{Binding OpenAvailableUpdateCommand}" IsVisible="{Binding HasAvailableUpdate}"><TextBlock Text="{Binding OpenUpdateLabel}" TextWrapping="Wrap" /></Button>
+                            </WrapPanel>
+                            <TextBlock Text="{Binding UpdateStatus}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="card">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="{Binding Text.Appearance}" Classes="eyebrow" />
+                            <TextBlock Text="{Binding Text.Theme}" FontSize="20" FontWeight="SemiBold" />
+                            <ComboBox ItemsSource="{Binding ThemeOptions}" SelectedIndex="{Binding SelectedThemeIndex}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="1" Classes="card">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="{Binding Text.Language}" Classes="eyebrow" />
+                            <TextBlock Text="{Binding Text.InterfaceLanguage}" FontSize="20" FontWeight="SemiBold" />
+                            <ComboBox ItemsSource="{Binding LanguageOptions}" SelectedIndex="{Binding SelectedLanguageIndex}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Row="1" Classes="card">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="{Binding Text.AccountPreferences}" Classes="eyebrow" />
+                            <CheckBox Content="{Binding Text.EnableSearch}" IsChecked="{Binding AccountSearchEnabled}" />
+                            <CheckBox Content="{Binding Text.FavoritesFirst}" IsChecked="{Binding FavoritesFirst}" />
+                            <Separator Margin="0,5" Background="#2A3548" />
+                            <TextBlock Text="{Binding Text.QrCaptureSettings}" Classes="eyebrow" />
+                            <TextBlock Text="{Binding Text.QrCaptureSource}" Classes="muted" FontSize="12" />
+                            <ComboBox ItemsSource="{Binding QrCaptureModeOptions}" SelectedIndex="{Binding SelectedQrCaptureModeIndex}" />
+                            <StackPanel IsVisible="{Binding IsCursorAreaMode}" Spacing="7">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="{Binding Text.QrCursorAreaSize}" Classes="muted" FontSize="12" />
+                                    <TextBlock Grid.Column="1" Text="{Binding QrCursorAreaSize, StringFormat={}{0} px}" FontWeight="SemiBold" />
+                                </Grid>
+                                <Slider Minimum="250" Maximum="2000" TickFrequency="50" IsSnapToTickEnabled="True" Value="{Binding QrCursorAreaSize}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Row="1" Grid.Column="1" Classes="card">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="{Binding Text.Security}" Classes="eyebrow" />
+                            <TextBlock Text="{Binding Text.ProtectedLocally}" FontSize="18" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Text.SecurityDescription}" Classes="muted" TextWrapping="Wrap" />
+                            <Separator Margin="0,5" Background="#2A3548" />
+                            <TextBlock Text="{Binding Text.GlobalHotkeys}" Classes="eyebrow" />
+                            <CheckBox Content="{Binding Text.EnableGlobalHotkeys}" IsChecked="{Binding GlobalHotkeysEnabled}" />
+                            <CheckBox Content="{Binding Text.EnableQrHotkeys}" IsChecked="{Binding QrHotkeysEnabled}" />
+                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="10">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{Binding Text.ToggleQrHotkeys}" Classes="muted" FontSize="12" />
+                                    <TextBox Text="{Binding QrToggleHotkey}" Watermark="Ctrl+Shift+Q" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock Text="{Binding Text.ScanQrHotkey}" Classes="muted" FontSize="12" />
+                                    <TextBox Text="{Binding QrScanHotkey}" Watermark="Ctrl+Shift+S" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Spacing="6">
+                                    <TextBlock Text="{Binding Text.PreviousAccountHotkey}" Classes="muted" FontSize="12" />
+                                    <TextBox Text="{Binding PreviousAccountHotkey}" Watermark="Ctrl+Shift+Left" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                                    <TextBlock Text="{Binding Text.NextAccountHotkey}" Classes="muted" FontSize="12" />
+                                    <TextBox Text="{Binding NextAccountHotkey}" Watermark="Ctrl+Shift+Right" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="2" Spacing="6">
+                                    <TextBlock Text="{Binding AutoLoginAllLabel}" Classes="muted" FontSize="12" />
+                                    <TextBox Text="{Binding AutoLoginAllHotkey}" Watermark="Ctrl+Shift+L" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="2" Grid.Column="1" Spacing="6">
+                                    <TextBlock Text="{Binding Text.ConfirmationsHotkey}" Classes="muted" FontSize="12" />
+                                    <TextBox Text="{Binding ConfirmationsHotkey}" Watermark="Ctrl+Shift+C" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="{Binding HotkeyStatus}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                            <Button Classes="primary" Command="{Binding SavePreferencesCommand}" HorizontalAlignment="Left"><TextBlock Text="{Binding Text.Save}" TextWrapping="Wrap" /></Button>
+                            <TextBlock Text="{Binding SettingsNotice}" Foreground="{StaticResource SuccessBrush}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Row="2" Grid.ColumnSpan="2" Classes="card">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="{Binding ConfirmationAutomationTitle}" Classes="eyebrow" />
+                            <CheckBox Content="{Binding PeriodicConfirmationCheckingLabel}" IsChecked="{Binding PeriodicConfirmationChecking}" />
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" IsEnabled="{Binding PeriodicConfirmationChecking}">
+                                <NumericUpDown Width="110" Minimum="5" Maximum="3600" Increment="5" Value="{Binding ConfirmationCheckIntervalSeconds}" />
+                                <TextBlock Grid.Column="1" Text="{Binding ConfirmationIntervalLabel}" Classes="muted" VerticalAlignment="Center" />
+                            </Grid>
+                            <CheckBox Content="{Binding CheckAllConfirmationsLabel}" IsChecked="{Binding CheckAllAccountsForConfirmations}" IsEnabled="{Binding PeriodicConfirmationChecking}" />
+                            <Separator Margin="0,4" Background="#2A3548" />
+                            <CheckBox Content="{Binding AutoConfirmMarketLabel}" IsChecked="{Binding AutoConfirmMarketTransactions}" IsEnabled="{Binding PeriodicConfirmationChecking}" />
+                            <CheckBox Content="{Binding AutoConfirmGiftTradesLabel}" IsChecked="{Binding AutoConfirmGiftTrades}" IsEnabled="{Binding PeriodicConfirmationChecking}" />
+                            <TextBlock Text="{Binding ConfirmationAutomationWarning}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ConfirmationPollingStatus}" Foreground="{StaticResource SuccessBrush}" FontSize="12" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+
+        <Border Grid.ColumnSpan="2" ZIndex="125" IsVisible="{Binding IsCloudPairingVisible}" Background="#E0090D15">
+            <Border Classes="card" MaxWidth="780" MaxHeight="760" Margin="24" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
+                    <TextBlock Text="{Binding CloudPairingTitle}" FontSize="26" FontWeight="Bold" />
+                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="{Binding CloudPairingHelp}" Classes="muted" />
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                                <Button Command="{Binding ReceivePhoneProfileCommand}" IsEnabled="{Binding !IsCloudPairingBusy}"><TextBlock Text="{Binding PhoneToPcLabel}" /></Button>
+                                <Button Grid.Column="1" Command="{Binding SendPhoneProfileCommand}" IsEnabled="{Binding !IsCloudPairingBusy}"><TextBlock Text="{Binding PcToPhoneLabel}" /></Button>
+                            </Grid>
+                            <TextBlock Text="{Binding CloudPairingExportHelp}" Classes="muted" FontSize="12" />
+                            <TextBox Text="{Binding CloudPairingExportKey}" PasswordChar="●" Watermark="{Binding OptionalPairingKeyLabel}" IsEnabled="{Binding !IsCloudPairingBusy}" />
+                            <TextBlock Text="{Binding RelayLabel}" Classes="eyebrow" />
+                            <TextBox Text="{Binding CloudPairingRelay}" IsEnabled="{Binding !IsCloudPairingBusy}" />
+                            <Image Source="{Binding CloudPairingQr}" Width="320" Height="320" Stretch="Uniform" IsVisible="{Binding IsCloudPairingBusy}" />
+                            <TextBlock Text="{Binding CloudPairingCode}" FontSize="28" FontWeight="Bold" LetterSpacing="3" HorizontalAlignment="Center" />
+                            <TextBlock Text="{Binding CloudPairingStatus}" />
+                            <Button Classes="primary" Command="{Binding ApplyCloudPairingCommand}" IsVisible="{Binding HasReceivedCloudProfile}"><TextBlock Text="{Binding ApplyCloudPairingLabel}" /></Button>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <Button Grid.Row="2" Command="{Binding CloseCloudPairingCommand}" HorizontalAlignment="Right"><TextBlock Text="{Binding Text.Cancel}" /></Button>
+                </Grid>
+            </Border>
+        </Border>
+        <Border Grid.ColumnSpan="2" ZIndex="120" IsVisible="{Binding IsInitialSetupVisible}" Background="#E0090D15">
+            <Border MaxWidth="650" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="card" Padding="28">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="{Binding InitialSetupTitle}" FontSize="28" FontWeight="Bold" TextWrapping="Wrap" />
+                    <Button Classes="primary" Command="{Binding InitialSetupCloudCommand}" IsEnabled="{Binding !IsLocalSetupBusy}"><TextBlock Text="{Binding InitialSetupCloudLabel}" TextWrapping="Wrap" /></Button>
+                    <Button Command="{Binding OpenCloudPairingCommand}" Content="{Binding CloudPairingTitle}" />
+                    <Button Command="{Binding ImportLocalSetupCommand}" IsEnabled="{Binding !IsLocalSetupBusy}"><TextBlock Text="{Binding InitialSetupLocalLabel}" TextWrapping="Wrap" /></Button>
+                    <Button Command="{Binding InitialSetupFreshCommand}" IsEnabled="{Binding !IsLocalSetupBusy}"><TextBlock Text="{Binding InitialSetupFreshLabel}" TextWrapping="Wrap" /></Button>
+                    <Button Command="{Binding InitialSetupDevicesCommand}" IsEnabled="{Binding !IsLocalSetupBusy}"><TextBlock Text="{Binding InitialSetupDevicesLabel}" TextWrapping="Wrap" /></Button>
+                    <ProgressBar IsVisible="{Binding IsLocalSetupBusy}" IsIndeterminate="True" Height="4" />
+                    <TextBlock Text="{Binding InitialSetupStatus}" TextWrapping="Wrap" />
+                    <Button Command="{Binding CloseInitialSetupCommand}" IsEnabled="{Binding !IsLocalSetupBusy}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                </StackPanel>
+            </Border>
+        </Border>
+        <Border Grid.ColumnSpan="2" ZIndex="100" IsVisible="{Binding IsLoginPanelVisible}" Background="#B8050910">
+            <Border Width="520" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="card" Background="#F2111722" BorderBrush="#40506B" Padding="26">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="{Binding Text.SteamLoginTitle}" FontSize="25" FontWeight="Bold" />
+                    <TextBlock Text="{Binding Text.SteamLoginSubtitle}" Classes="muted" TextWrapping="Wrap" />
+                    <Border Background="#101927" CornerRadius="12" Padding="13,10">
+                        <TextBlock Text="{Binding SelectedAccountName}" FontSize="16" FontWeight="SemiBold" />
+                    </Border>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Text.Username}" Classes="eyebrow" />
+                        <TextBox Text="{Binding LoginUsername}" />
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Text.SteamPassword}" Classes="eyebrow" />
+                        <TextBox Text="{Binding LoginPassword}" PasswordChar="●" />
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Text.VaultPassword}" Classes="eyebrow" />
+                        <TextBox Text="{Binding LoginVaultPassword}" PasswordChar="●" />
+                        <TextBlock Text="{Binding Text.LoginVaultPasswordHint}" Classes="muted" FontSize="11" />
+                    </StackPanel>
+                    <CheckBox IsChecked="{Binding StoreLoginCredential}" Content="{Binding StoreLoginLabel}" />
+                    <Border IsVisible="{Binding IsLoginEmailCodeRequested}" Background="#15243A" BorderBrush="#35527A" BorderThickness="1" CornerRadius="12" Padding="14">
+                        <StackPanel Spacing="9">
+                            <TextBlock Text="{Binding LoginEmailPrompt}" TextWrapping="Wrap" />
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <TextBox Text="{Binding LoginEmailCode}" Watermark="{Binding Text.EmailCode}" />
+                                <Button Grid.Column="1" Classes="primary" Command="{Binding SubmitLoginEmailCodeCommand}"><TextBlock Text="{Binding Text.SubmitEmailCode}" TextWrapping="Wrap" /></Button>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <ProgressBar IsVisible="{Binding IsLoginBusy}" IsIndeterminate="True" Height="5" />
+                    <TextBlock Text="{Binding LoginStatus}" Classes="muted" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Button Command="{Binding CancelLoginCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                        <Button Grid.Column="1" Classes="primary" Command="{Binding LoginAgainCommand}"><TextBlock Text="{Binding LoginActionLabel}" TextWrapping="Wrap" /></Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <Border Grid.ColumnSpan="2" ZIndex="104" IsVisible="{Binding IsAutoLoginAllPanelVisible}" Background="#B8050910">
+            <Border Width="520" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="card" Background="#F2111722" BorderBrush="#40506B" Padding="26">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="{Binding AutoLoginAllLabel}" FontSize="24" FontWeight="Bold" />
+                    <TextBlock Text="{Binding AutoLoginAllStatus}" Classes="muted" TextWrapping="Wrap" />
+                    <StackPanel Spacing="6" IsVisible="{Binding AutoLoginAllNeedsVaultPassword}">
+                        <TextBlock Text="{Binding Text.VaultPassword}" Classes="eyebrow" />
+                        <TextBox Text="{Binding AutoLoginAllVaultPassword}" PasswordChar="●" />
+                        <TextBlock Text="{Binding AutoLoginAllPasswordExplanation}" Classes="muted" FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ProgressBar IsVisible="{Binding IsAutoLoginAllBusy}" IsIndeterminate="True" Height="5" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Button Command="{Binding CancelAutoLoginAllCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                        <Button Grid.Column="1" Classes="primary" IsVisible="{Binding CanRunAutoLoginAll}" Command="{Binding ConfirmAutoLoginAllCommand}"><TextBlock Text="{Binding AutoLoginAllLabel}" TextWrapping="Wrap" /></Button>
+                        <Button Grid.Column="1" Classes="primary" IsVisible="{Binding !CanRunAutoLoginAll}" Command="{Binding ConfigureCredentialsFromAutoLoginCommand}"><TextBlock Text="{Binding ConfigureCredentialsLabel}" TextWrapping="Wrap" /></Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <Border Grid.ColumnSpan="2" ZIndex="106" IsVisible="{Binding IsPlainCredentialImportWarningVisible}" Background="#D0050910">
+            <Border Width="600" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="card" Background="#F2111722" BorderBrush="#49668E" Padding="26">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="{Binding PlainCredentialImportTitle}" FontSize="24" FontWeight="Bold" />
+                    <TextBlock Text="{Binding PlainCredentialImportWarning}" Classes="muted" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Button Command="{Binding CancelPlainCredentialImportCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                        <Button Grid.Column="1" Classes="primary" Command="{Binding ConfirmPlainCredentialImportCommand}"><TextBlock Text="{Binding ImportLegacyCredentialsLabel}" TextWrapping="Wrap" /></Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <Border Grid.ColumnSpan="2" ZIndex="107" IsVisible="{Binding IsCredentialVaultDeleteConfirmationVisible}" Background="#D0050910">
+            <Border Width="580" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="card" Background="#F2111722" BorderBrush="#6A3440" Padding="26">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="{Binding DeleteCredentialsVaultTitle}" FontSize="24" FontWeight="Bold" />
+                    <TextBlock Text="{Binding DeleteCredentialsVaultWarning}" Classes="muted" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Button Command="{Binding CancelDeleteCredentialVaultCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                        <Button Grid.Column="1" Command="{Binding ConfirmDeleteCredentialVaultCommand}" Foreground="#FF8996" BorderBrush="#8A3E4D"><TextBlock Text="{Binding DeleteCredentialsVaultLabel}" TextWrapping="Wrap" /></Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <Border Grid.ColumnSpan="2" ZIndex="109" IsVisible="{Binding IsCredentialCloudAuthVisible}" Background="#D0050910">
+            <Border MaxWidth="580" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="card" Padding="26">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="{Binding DownloadCredentialsLabel}" FontSize="24" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding CredentialCloudAuthHint}" TextWrapping="Wrap" />
+                    <TextBox Text="{Binding CredentialCloudPassword}" PasswordChar="●" />
+                    <Button Command="{Binding ConfirmCredentialCloudAuthCommand}"><TextBlock Text="{Binding DownloadCredentialsLabel}" TextWrapping="Wrap" /></Button>
+                    <Button Command="{Binding CancelCredentialCloudAuthCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                </StackPanel>
+            </Border>
+        </Border>
+        <Border Grid.ColumnSpan="2" ZIndex="108" IsVisible="{Binding IsCredentialImportVisible}" Background="#D0050910">
+            <Border Width="560" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="card" Background="#F2111722" BorderBrush="#49668E" Padding="26">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="{Binding ImportCredentialsLabel}" FontSize="24" FontWeight="Bold" />
+                    <Border Background="#101927" CornerRadius="12" Padding="13,10">
+                        <TextBlock Text="{Binding CredentialImportSourcePath}" TextTrimming="CharacterEllipsis" />
+                    </Border>
+                    <TextBlock Text="{Binding ImportKeyLabel}" Classes="eyebrow" />
+                    <TextBox Text="{Binding CredentialImportKey}" PasswordChar="●" />
+                    <TextBlock Text="{Binding CredentialImportStatus}" Classes="muted" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Button Command="{Binding CancelCredentialImportCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                        <Button Grid.Column="1" Classes="primary" Command="{Binding ConfirmCredentialImportCommand}"><TextBlock Text="{Binding ImportCredentialsLabel}" TextWrapping="Wrap" /></Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <Border Grid.ColumnSpan="2" ZIndex="107" IsVisible="{Binding IsCredentialSetupVisible}" Background="#D0050910">
+            <Border Width="620" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="card" Background="#F2111722" BorderBrush="#49668E" Padding="28">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="{Binding CreateCredentialsLabel}" FontSize="24" FontWeight="Bold" />
+                    <TextBlock Text="{Binding CredentialSetupStatus}" Classes="muted" TextWrapping="Wrap" />
+                    <Border Background="#101927" BorderBrush="#324663" BorderThickness="1" CornerRadius="12" Padding="14">
+                        <TextBlock Text="{Binding GeneratedCredentialKey}" FontFamily="Consolas" TextWrapping="Wrap" />
+                    </Border>
+                    <Button Command="{Binding CopyCredentialKeyCommand}" HorizontalAlignment="Left"><TextBlock Text="{Binding CopyKeyLabel}" TextWrapping="Wrap" /></Button>
+                    <StackPanel IsVisible="{Binding IsCredentialKeyReentryVisible}" Spacing="7">
+                        <TextBlock Text="{Binding VerifyKeyLabel}" Classes="eyebrow" />
+                        <TextBox Text="{Binding CredentialKeyConfirmation}" PasswordChar="●" />
+                        <Button Classes="primary" Command="{Binding VerifyCredentialKeyCommand}"><TextBlock Text="{Binding VerifyKeyLabel}" TextWrapping="Wrap" /></Button>
+                    </StackPanel>
+                    <Border IsVisible="{Binding IsCredentialFinalWarningVisible}" Background="#2B1E1B" BorderBrush="#75463C" BorderThickness="1" CornerRadius="12" Padding="14">
+                        <TextBlock Text="{Binding CredentialSetupStatus}" TextWrapping="Wrap" />
+                    </Border>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Button IsEnabled="{Binding CanContinueCredentialSetup}" Command="{Binding CancelCredentialSetupCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                        <Button Grid.Column="1" IsVisible="{Binding IsCredentialFinalWarningVisible}" Classes="primary" Command="{Binding CreateCredentialVaultCommand}"><TextBlock Text="{Binding FinalCreateCredentialsLabel}" TextWrapping="Wrap" /></Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <Border Grid.ColumnSpan="2" ZIndex="106" IsVisible="{Binding IsProtectionConfirmationVisible}" Background="#B8050910">
+            <Border Width="520" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="card" Background="#F2111722" BorderBrush="#49668E" Padding="26">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="{Binding EncryptionTitle}" FontSize="24" FontWeight="Bold" />
+                    <Border Background="#15243A" BorderBrush="#35527A" BorderThickness="1" CornerRadius="12" Padding="14">
+                        <TextBlock Text="{Binding VaultProtectionPrompt}" TextWrapping="Wrap" />
+                    </Border>
+                    <TextBlock Text="{Binding VaultProtectionStatus}" Classes="muted" TextWrapping="Wrap" />
+                    <ProgressBar IsVisible="{Binding IsVaultProtectionBusy}" IsIndeterminate="True" Height="5" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Button Command="{Binding CancelProtectionChangeCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                        <Button Grid.Column="1" Classes="primary" Command="{Binding ApplyProtectionChangeCommand}"><TextBlock Text="{Binding ApplyProtectionLabel}" TextWrapping="Wrap" /></Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <Border Grid.ColumnSpan="2" ZIndex="100" IsVisible="{Binding IsSteamSessionsPanelVisible}" Background="#B8050910">
+            <Border Width="760" MaxHeight="680" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="card" Background="#F2111722" BorderBrush="#40506B" Padding="26">
+                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="{Binding SteamSessionsTitle}" FontSize="24" FontWeight="Bold" />
+                            <TextBlock Text="{Binding SteamSessionsSubtitle}" Classes="muted" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Command="{Binding RefreshSteamSessionsCommand}"><TextBlock Text="{Binding RefreshSteamSessionsLabel}" TextWrapping="Wrap" /></Button>
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="470">
+                        <ItemsControl ItemsSource="{Binding ActiveSteamSessions}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#111B2A" BorderBrush="#2E3D54" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,0,0,10">
+                                        <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="7">
+                                            <StackPanel Orientation="Horizontal" Spacing="9">
+                                                <TextBlock Text="{Binding DeviceName}" FontSize="16" FontWeight="SemiBold" />
+                                                <Border IsVisible="{Binding IsCurrent}" Background="#193F36" CornerRadius="10" Padding="9,3">
+                                                    <TextBlock Text="{Binding CurrentLabel}" Foreground="{StaticResource SuccessBrush}" FontSize="11" FontWeight="SemiBold" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Grid.Row="1" Text="{Binding AccountLabel}" Foreground="#8EACFF" FontSize="12" FontWeight="SemiBold" />
+                                            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="14">
+                                                <TextBlock Text="{Binding Platform}" Classes="muted" />
+                                                <TextBlock Text="{Binding IpAddress}" FontFamily="Consolas" />
+                                                <TextBlock Text="{Binding Location}" Classes="muted" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Row="3" Text="{Binding LastSeenLabel}" Classes="muted" FontSize="12" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <Grid Grid.Row="2" RowDefinitions="Auto,Auto" RowSpacing="10">
+                        <ProgressBar IsVisible="{Binding IsSteamSessionsBusy}" IsIndeterminate="True" Height="5" />
+                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                            <TextBlock Text="{Binding SteamSessionsStatus}" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <Button Grid.Column="1" Command="{Binding CloseSteamSessionsCommand}"><TextBlock Text="{Binding CloseLabel}" TextWrapping="Wrap" /></Button>
+                            <Button Grid.Column="2" Command="{Binding ShowEndSessionsPanelCommand}" Background="#4A2025" BorderBrush="#8B3E48"><TextBlock Text="{Binding TerminateAllSteamSessionsLabel}" TextWrapping="Wrap" /></Button>
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Border>
+
+        <Border Grid.ColumnSpan="2" ZIndex="101" IsVisible="{Binding IsEndSessionsPanelVisible}" Background="#B8050910">
+            <Border Width="500" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="card" Background="#F2111722" BorderBrush="#765044" Padding="26">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="{Binding EndSessionsActionTitle}" FontSize="24" FontWeight="Bold" />
+                    <Border Background="#2B1E1B" BorderBrush="#75463C" BorderThickness="1" CornerRadius="12" Padding="14">
+                        <TextBlock Text="{Binding EndSessionsPrompt}" TextWrapping="Wrap" />
+                    </Border>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Text.VaultPassword}" Classes="eyebrow" />
+                        <TextBox Text="{Binding EndSessionsVaultPassword}" PasswordChar="●" />
+                        <TextBlock Text="{Binding Text.LoginVaultPasswordHint}" Classes="muted" FontSize="11" />
+                    </StackPanel>
+                    <ProgressBar IsVisible="{Binding IsEndSessionsBusy}" IsIndeterminate="True" Height="5" />
+                    <TextBlock Text="{Binding EndSessionsStatus}" Classes="muted" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Button Command="{Binding CancelEndSessionsCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                        <Button Grid.Column="1" Classes="primary" Command="{Binding ConfirmEndSessionsCommand}"><TextBlock Text="{Binding ConfirmEndSessionsActionLabel}" TextWrapping="Wrap" /></Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <Border Grid.ColumnSpan="2" ZIndex="102" IsVisible="{Binding IsAccountImportVisible}" Background="#B8050910">
+            <Border Width="560" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="card" Background="#F2111722" BorderBrush="#40506B" Padding="26">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="{Binding Text.ImportAccountTitle}" FontSize="24" FontWeight="Bold" />
+                    <TextBlock Text="{Binding Text.ImportAccountSubtitle}" Classes="muted" TextWrapping="Wrap" />
+                    <Border Background="#101927" CornerRadius="12" Padding="13,10">
+                        <TextBlock Text="{Binding AccountImportSourcePath}" TextTrimming="CharacterEllipsis" />
+                    </Border>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Text.SourceVaultPassword}" Classes="eyebrow" />
+                        <TextBox Text="{Binding AccountImportSourcePassword}" PasswordChar="●" />
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Text.DestinationVaultPassword}" Classes="eyebrow" />
+                        <TextBox Text="{Binding AccountImportDestinationPassword}" PasswordChar="●" />
+                    </StackPanel>
+                    <ProgressBar IsVisible="{Binding IsAccountImportBusy}" IsIndeterminate="True" Height="5" />
+                    <TextBlock Text="{Binding AccountImportStatus}" Classes="muted" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Button Command="{Binding CancelAccountImportCommand}"><TextBlock Text="{Binding Text.Cancel}" TextWrapping="Wrap" /></Button>
+                        <Button Grid.Column="1" Classes="primary" Command="{Binding ConfirmAccountImportCommand}"><TextBlock Text="{Binding Text.ImportSelectedAccount}" TextWrapping="Wrap" /></Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</Window>

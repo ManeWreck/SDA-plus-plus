@@ -7,6 +7,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Steam Desktop Authenticator
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SteamAuth", "lib\SteamAuth\SteamAuth\SteamAuth.csproj", "{5AD0934E-F6C4-4AE5-83AF-C788313B2A87}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SDAPlusPlus.Desktop", "SDAPlusPlus.Desktop\SDAPlusPlus.Desktop.csproj", "{490A82EB-5B64-4358-8A82-48F04749035C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SDAPlusPlus.Core", "SDAPlusPlus.Core\SDAPlusPlus.Core.csproj", "{30A2697B-21DB-4DF7-B81B-2493A2478BD0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SDAPlusPlus.Core.Tests", "SDAPlusPlus.Core.Tests\SDAPlusPlus.Core.Tests.csproj", "{2F1452E3-4960-442A-821D-9DE337C10CD4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +27,18 @@ Global
 		{5AD0934E-F6C4-4AE5-83AF-C788313B2A87}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5AD0934E-F6C4-4AE5-83AF-C788313B2A87}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5AD0934E-F6C4-4AE5-83AF-C788313B2A87}.Release|Any CPU.Build.0 = Release|Any CPU
+		{490A82EB-5B64-4358-8A82-48F04749035C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{490A82EB-5B64-4358-8A82-48F04749035C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{490A82EB-5B64-4358-8A82-48F04749035C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{490A82EB-5B64-4358-8A82-48F04749035C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{30A2697B-21DB-4DF7-B81B-2493A2478BD0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{30A2697B-21DB-4DF7-B81B-2493A2478BD0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{30A2697B-21DB-4DF7-B81B-2493A2478BD0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{30A2697B-21DB-4DF7-B81B-2493A2478BD0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2F1452E3-4960-442A-821D-9DE337C10CD4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2F1452E3-4960-442A-821D-9DE337C10CD4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2F1452E3-4960-442A-821D-9DE337C10CD4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2F1452E3-4960-442A-821D-9DE337C10CD4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

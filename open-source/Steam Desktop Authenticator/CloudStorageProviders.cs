@@ -45,7 +45,9 @@ namespace Steam_Desktop_Authenticator
                 Encoding.UTF8,
                 "application/xml");
 
-            using HttpResponseMessage response = await client.SendAsync(request);
+            using HttpResponseMessage response = request.Method.Method == "PROPFIND"
+                ? await SDAPlusPlus.Core.Cloud.CloudReadTransport.SendAsync(client, request, "list/test cloud directory")
+                : await client.SendAsync(request);
             if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.MultiStatus)
             {
                 throw new InvalidOperationException($"WebDAV connection failed: {(int)response.StatusCode} {response.ReasonPhrase}");
@@ -63,7 +65,9 @@ namespace Steam_Desktop_Authenticator
             {
                 currentPath += Uri.EscapeDataString(segment) + "/";
                 using HttpRequestMessage request = new HttpRequestMessage(new HttpMethod("MKCOL"), new Uri(baseUri, currentPath));
-                using HttpResponseMessage response = await client.SendAsync(request);
+                using HttpResponseMessage response = request.Method.Method == "PROPFIND"
+                ? await SDAPlusPlus.Core.Cloud.CloudReadTransport.SendAsync(client, request, "list/test cloud directory")
+                : await client.SendAsync(request);
                 if (!response.IsSuccessStatusCode &&
                     response.StatusCode != HttpStatusCode.MethodNotAllowed &&
                     response.StatusCode != HttpStatusCode.Conflict)
@@ -76,7 +80,8 @@ namespace Steam_Desktop_Authenticator
         public async Task<string> DownloadTextAsync(string fileName, bool optional = false)
         {
             using HttpClient client = CreateClient();
-            using HttpResponseMessage response = await client.GetAsync(BuildFileUri(fileName));
+            using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, BuildFileUri(fileName));
+            using HttpResponseMessage response = await SDAPlusPlus.Core.Cloud.CloudReadTransport.SendAsync(client, request, "download " + fileName);
             if (optional && response.StatusCode == HttpStatusCode.NotFound)
             {
                 return null;
@@ -104,7 +109,9 @@ namespace Steam_Desktop_Authenticator
                 Encoding.UTF8,
                 "application/xml");
 
-            using HttpResponseMessage response = await client.SendAsync(request);
+            using HttpResponseMessage response = request.Method.Method == "PROPFIND"
+                ? await SDAPlusPlus.Core.Cloud.CloudReadTransport.SendAsync(client, request, "list/test cloud directory")
+                : await client.SendAsync(request);
             if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.MultiStatus)
             {
                 await EnsureSuccessAsync(response, "list WebDAV directory");

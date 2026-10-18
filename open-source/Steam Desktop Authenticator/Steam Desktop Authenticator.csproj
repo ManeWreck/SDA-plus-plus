@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
     <OutputType>WinExe</OutputType>
@@ -41,4 +41,5 @@
     <PackageReference Include="SteamKit2" Version="3.0.0-Beta.4" />
     <PackageReference Include="ZXing.Net" Version="0.16.10" />
   </ItemGroup>
+<ItemGroup><Compile Include="../SDAPlusPlus.Core/Cloud/CloudReadTransport.cs" Link="CloudReadTransport.cs" /></ItemGroup>
 </Project>

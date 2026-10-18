@@ -205,7 +205,7 @@ namespace Steam_Desktop_Authenticator
         public List<StoredCredential> ParseCredentialPairs(string filePath)
         {
             List<StoredCredential> imported = new List<StoredCredential>();
-            foreach (string rawLine in File.ReadAllLines(filePath))
+            foreach (string rawLine in ReadCredentialPairLines(filePath))
             {
                 string line = rawLine?.Trim();
                 if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#", StringComparison.Ordinal))
@@ -237,6 +237,62 @@ namespace Steam_Desktop_Authenticator
             }
 
             return imported;
+        }
+
+        private static IEnumerable<string> ReadCredentialPairLines(string filePath)
+        {
+            string content = File.ReadAllText(filePath);
+            string trimmed = content.TrimStart();
+            if (!trimmed.StartsWith("[", StringComparison.Ordinal))
+            {
+                return File.ReadLines(filePath);
+            }
+
+            List<string> pairs = new List<string>();
+            using StringReader stringReader = new StringReader(content);
+            using JsonTextReader jsonReader = new JsonTextReader(stringReader)
+            {
+                DateParseHandling = DateParseHandling.None
+            };
+
+            bool arrayStarted = false;
+            bool arrayEnded = false;
+            while (jsonReader.Read())
+            {
+                switch (jsonReader.TokenType)
+                {
+                    case JsonToken.StartArray:
+                        if (arrayStarted)
+                        {
+                            throw new JsonReaderException("Nested arrays are not supported in credentials files.");
+                        }
+
+                        arrayStarted = true;
+                        break;
+                    case JsonToken.String:
+                        if (!arrayStarted || arrayEnded)
+                        {
+                            throw new JsonReaderException("Credential values must be inside a JSON array.");
+                        }
+
+                        pairs.Add((string)jsonReader.Value);
+                        break;
+                    case JsonToken.EndArray:
+                        arrayEnded = true;
+                        break;
+                    case JsonToken.Comment:
+                        break;
+                    default:
+                        throw new JsonReaderException("The credentials JSON array may only contain strings.");
+                }
+            }
+
+            if (!arrayStarted || !arrayEnded)
+            {
+                throw new JsonReaderException("The credentials JSON array is incomplete.");
+            }
+
+            return pairs;
         }
 
         public string GenerateEncryptionKey()

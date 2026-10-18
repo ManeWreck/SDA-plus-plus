@@ -26,3 +26,21 @@ portable-exe/maFiles/*
 *.7z
 *.tmp
 *.log
+
+# Build, test and documentation-tool outputs
+**/bin/
+**/obj/
+artifacts/
+verification/
+**/TestResults/
+*.trx
+*.pdb
+*.user
+*.suo
+.env
+.env.*
+**/device-registry*.json
+**/device-identity*.json
+**/*.dpapi
+**/credentials-download-*.json
+**/.credentials-download-*.json

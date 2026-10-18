@@ -76,6 +76,7 @@ namespace Steam_Desktop_Authenticator
             }
 
             Localizer.SetLanguage(man.UiLanguage);
+            Branding.ApplyAppearance(man);
 
             using (var notice = new StartupNoticeForm(
                 Localizer.Choose(

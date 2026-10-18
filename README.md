@@ -1,229 +1,92 @@
-# Steam Desktop Authenticator ++
+# SDA++ — Avalonia Desktop
 
-<p align="center">
-  <img src="./icon.png" width="128" alt="SDA++ icon" />
-</p>
+<p align="center"><img src="icon.png" width="96" alt="SDA++"></p>
 
-<p align="center">
-  SDA++ is a modern Windows fork of Steam Desktop Authenticator for Steam Guard two-factor authentication, account management, QR login, cloud synchronization, and session recovery.
-</p>
+**Steam Guard, account management, confirmations and encrypted cloud backups in an Avalonia desktop interface.**
 
-<p align="center">
-  <img alt="Windows" src="https://img.shields.io/badge/Platform-Windows%2010%2B-2d6cdf" />
-  <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-0f172a" />
-  <img alt="Build" src="https://img.shields.io/badge/Build-Release-1f7a4f" />
-  <img alt="Version" src="https://img.shields.io/badge/Version-1.7.0-668cff" />
-</p>
+[Download Windows x64](https://github.com/ManeWreck/SDA-plus-plus/releases/latest) · [Русское описание](README.ru.md) · [Build from source](open-source/README.md) · [Release notes](docs/releases/1.7.4.md)
 
-![Selected account](./docs/selected-account.png)
+The main application is now **Avalonia 1.7.4**. Windows x64 is the supported release target. The earlier WinForms UI remains in the source tree for reference and compatibility work; it is no longer the default download.
 
-Originally based on Steam Desktop Authenticator.  
-Now developed as the independent **SDA++** project.
+![Avalonia dashboard with fictional demo accounts](docs/screenshots/dashboard.png)
 
-## What's new in SDA++
+> All screenshots render the actual application views with fictional demonstration data. They contain no real Steam accounts, passwords, vault keys or personal settings. The screenshot tool does not read a user profile or contact Steam/cloud services.
 
-Compared to the original SDA:
+## What you can do
 
-- QR-code login from desktop screenshots
-- Hotkey-based account switching
-- Automatic session recovery
-- Cloud synchronization improvements
-- Separate credential vault support
-- Enhanced account management tools
-- Updated dark UI
-- All-account monitoring for VAC, level, games, session health, and tradable CS2 inventory
-- Unified confirmations across loaded accounts
-- Batch auto-login and configurable recovery hotkeys
+| Area | Features |
+| --- | --- |
+| Steam Guard | View and copy codes; search accounts; mark favorites; import existing .maFile backups. |
+| Account setup | Choose cloud setup, local SDA/SDA++ folder import, QR sign-in or trusted-device setup. An authenticator enrollment wizard is also included. |
+| Confirmations | Review confirmations with their originating account; inspect details before accepting or rejecting. Optional periodic checking is configurable. |
+| QR sign-in | Scan a Steam login QR displayed on your screen and approve it using the selected account. |
+| Credentials & recovery | Keep saved logins in a separate encrypted credentials vault; import or download an existing encrypted file; run batch re-login with saved credentials. |
+| Cloud backups | WebDAV, S3-compatible storage, Dropbox, OneDrive and Google Drive adapters; preview and validate a restore before local changes. OAuth providers need their own client configuration. |
+| Mobile connection | Transfer a WebDAV profile **Phone → PC** or **PC → Phone** using the Mobile v2 protocol, a temporary QR and a separate one-time code. |
+| Monitoring | Inspect session state, visible VAC/ban information, level, games and tradable inventory status; private and unavailable data are shown separately. |
+| Preferences | English/Russian interface, three dark themes, account search, favorites and configurable Windows global hotkeys. |
+| Navigation | Mouse4/Mouse5 or Alt+Left/Right move through page history. No extra arrow toolbar. |
 
-## Features
+## QR sign-in
 
-- QR-code login directly from the desktop
-- Automatic account switching with hotkeys
-- Session recovery utilities
-- Saved credentials manager for automatic re-login
-- Separate cloud synchronization for `.maFile` data and saved credentials
-- WebDAV cloud storage support
-- Improved Russian localization
-- Updated dark-themed interface
-- Portable build with no installation required
-- Searchable and sortable account monitoring without a Steam Web API key
-- Tradable-only CS2 inventory view with untradeable medals and items excluded
-- All-account confirmations with account-safe approve and reject actions
-- Automatic update checks at startup and every six hours
-- Validated cloud restore with preflight checks, local backup, atomic replacement, and automatic rollback
-- Bidirectional encrypted WebDAV setup with SDA++ Mobile from the first-run screen or **Account tools**
+Open a Steam login QR on your screen, choose the account in SDA++, then start scanning. Screen capture is user-triggered and processed in memory.
 
-### One-scan mobile pairing
+![QR sign-in view](docs/screenshots/qr-sign-in.png)
 
-On a fresh installation, choose **Connect cloud from SDA++ Mobile with one scan**. Pairing remains available later from **Account tools > Connect SDA++ Mobile**, where you can send WebDAV settings in either direction. Scan the two-minute QR code with SDA++ Mobile and enter the separate eight-character one-time code shown by the desktop. SDA++ tries the local network first and automatically falls back to its HTTPS relay when direct LAN access is unavailable.
+## Cloud backups and Mobile
 
-Pairing uses ephemeral P-256 ECDH and AES-256-GCM. Steam secrets, account files, and vault keys are never placed in the QR or pairing payload. The relay only sees ciphertext, limits each random session to 64 KiB and two minutes, and deletes the payload after its first successful download. The received password is protected with Windows DPAPI, after which SDA++ offers its validated backup-first Cloud Pull. Manual WebDAV setup remains available.
+Set up a cloud profile, test the connection and preview the remote vault before importing. Downloaded account data is validated before committing a restore. WebDAV reads have bounded timeouts and a limited retry for transient failures; writes are not automatically retried.
 
-### Safe cloud restore
+![Cloud configuration using an example address](docs/screenshots/cloud.png)
 
-Cloud Pull now downloads and validates the complete remote vault before changing local data. SDA++ checks manifest entries, filenames, SteamIDs, account payloads, encryption metadata, duplicate entries, and the optional credentials document. A summary is shown before confirmation, the current vault is backed up, and `manifest.json` is committed last. If a disk operation fails, SDA++ restores the previous files automatically.
+**Connect SDA++ Mobile** offers both transfer directions. Pairing uses ephemeral P-256 ECDH, HKDF-SHA256 and AES-GCM. The QR contains connection information, public keys and one-time relay tokens, not the WebDAV password. An optional credentials-vault key may be included **inside the encrypted payload** when explicitly supplied. The code/session lasts two minutes. LAN is attempted alongside the relay path; received profiles require confirmation before applying.
 
-### Update checks
+![Mobile pairing direction selection](docs/screenshots/mobile-pairing.png)
 
-SDA++ checks the latest GitHub Release after startup and every six hours while it is running. When a newer version is available, SDA++ displays a download prompt and the footer links directly to the portable ZIP. SDA++ never replaces or launches executables automatically, and a failed network request never interrupts Steam Guard.
+Pairing transfers cloud settings, not the account files themselves and not trusted-device privileges. After applying the profile, use cloud preview/import to restore accounts. Cloud passwords are session-only in this Avalonia flow; saving a profile does not write its password into the preferences JSON.
 
-## Account Monitoring
+## Encrypted login credentials
 
-Open **Monitor** from the main navigation to inspect all loaded accounts in one place. SDA++ reads public Steam Community data without requiring a Steam Web API key and shows:
+An existing `credentials.secure.json` can be downloaded from the selected cloud. You still need its original encryption key. If the local file is missing, batch re-login starts the download/import flow instead of silently creating a replacement. Keep the credentials key separately from the encrypted file.
 
-- VAC and visible ban status
-- Steam level and game count
-- current SDA++ session health
-- total tradable CS2 inventory items
-- private-profile and request-error states
+![Credentials management with fictional accounts and no passwords](docs/screenshots/credentials.png)
 
-The dashboard supports account/SteamID search, attention and session filters, sorting, and a five-minute cache. Double-click an account to open its tradable CS2 inventory. Medals and all other untradeable items are intentionally excluded.
+## Monitoring and preferences
 
-![Account monitoring](./docs/account-monitoring.png)
+![Account monitoring with fabricated values](docs/screenshots/monitoring.png)
 
-## Multi-account Recovery and Confirmations
+![Appearance, language and hotkey settings](docs/screenshots/settings.png)
 
-**Account tools > Auto login all accounts** restores available sessions using the encrypted credentials vault. The confirmations view combines confirmations from every loaded account and labels each action with its originating account.
+## Install or migrate
 
-Default hotkeys:
+1. Download `SDAplusplus-Avalonia-1.7.4-win-x64.zip` from [Releases](https://github.com/ManeWreck/SDA-plus-plus/releases/latest).
+2. Extract the entire archive into a new folder, then run `SDA++.exe`. The Windows x64 package includes .NET; no separate runtime install is needed.
+3. Keep a backup of your existing SDA folder. Choose **Account setup → Import an SDA / SDA++ folder** or configure cloud restore.
+4. Encrypted account files need their original password. The credentials vault uses its own key. Local folder import does not copy machine-specific secrets or replace an existing account set.
 
-- `Ctrl+Shift+L` runs auto-login for all accounts
-- `Ctrl+Shift+C` opens confirmations for all accounts
+The source repository no longer ships an old executable under `portable-exe`. Obtain builds from Releases.
 
-## Interface Tour
+## Security and current limits
 
-### Steam Guard code
+- Never publish .maFile files, manifests, credentials files, tokens, cloud passwords or recovery codes. CI checks tracked files and release packages for sensitive filenames.
+- Preserve your original authenticator recovery information and backups. This application is not affiliated with Valve.
+- Authenticator enrollment, physical Android pairing and live provider behavior still require environment-specific testing. Protocol tests are not a guarantee that every phone/network/provider combination has been tested.
+- The Devices area and signed-command components are under active development. Full cross-device command execution/result delivery is not represented as complete.
+- Avalonia is cross-platform technology, but this release still uses Windows-specific screen capture, hotkeys and key protection. Linux/macOS release parity is not claimed.
 
-![Steam Guard code](./docs/steam-guard-code.png)
-
-Shows the current rotating Steam Guard code and the progress bar until the next refresh.
-
-### Selected account
-
-![Selected account](./docs/selected-account.png)
-
-Displays the current account status, session health, and quick actions for confirmations, re-login, and ending sessions.
-
-### Pin account
-
-![Pin account](./docs/pin-account.png)
-
-Pinned accounts stay at the top of the account list so frequently used accounts are easier to reach.
-
-### Account tools
-
-![Account tools](./docs/account-tools.png)
-
-The account tools menu gives quick access to re-login, login credential management, session termination, manifest cleanup, and authenticator deactivation.
-
-### Manage login credentials
-
-![Manage login credentials](./docs/manage-login-credentials.png)
-
-This window stores encrypted login credentials used for automatic re-login and batch session recovery.
-
-### Trade confirmations
-
-![Trade confirmations](./docs/trade-confirmations.png)
-
-Lets you approve or revoke trade and market confirmations directly from the desktop client.
-
-### Settings, cloud sync, language, and hotkeys
-
-![Settings, cloud sync, language, and hotkeys](./docs/settings-cloud-hotkeys.png)
-
-Settings includes language selection, confirmation polling, QR hotkeys, account switching shortcuts, WebDAV cloud sync, and separate credential vault sync options.
-
-### Steam QR hotkeys overlay
-
-![Steam QR hotkeys overlay](./docs/steam-qr-hotkeys-overlay.png)
-
-This floating overlay appears when the QR hotkey system changes state. It confirms whether QR hotkeys are enabled or disabled and shows the result of the last hotkey action.
-
-### Account switching hotkeys
-
-SDA++ supports fast account navigation with keyboard shortcuts:
-
-- `Ctrl+Shift+Left` switches to the previous account
-- `Ctrl+Shift+Right` switches to the next account
-
-These shortcuts make it easy to move through multiple accounts without touching the mouse.
-
-## Download
-
-Download the latest portable version from [GitHub Releases](https://github.com/ManeWreck/SDA-plus-plus/releases).
-
-Project page: [SDA++ for Steam Guard on GitHub Pages](https://manewreck.github.io/SDA-plus-plus/).
-
-Current release asset:
-
-- `SDA++-1.7.0-portable.zip`
-
-## Quick Start
-
-1. Download `SDA++-1.7.0-portable.zip` from the Releases section.
-2. Extract the archive.
-3. Run `SDA++.exe`.
-4. Create or import your Steam Guard account.
-5. Configure cloud synchronization if desired.
-
-## Security
-
-SDA++ stores Steam Guard data locally.
-
-This executable is currently unsigned, so Windows may show an `Unknown publisher` warning on first launch.
-
-The public release package does not contain:
-
-- personal Steam Guard files (`.maFile`)
-- saved account credentials
-- cloud synchronization credentials
-- backup archives
-- user-generated runtime data
-
-Always keep encrypted backups of your Steam Guard files.
-
-Every GitHub Release includes a matching `.sha256` file generated from the exact published ZIP.
-
-## Repository Layout
-
-```text
-.
-|-- docs/
-|-- open-source/
-|   |-- SteamDesktopAuthenticator.sln
-|   |-- Steam Desktop Authenticator/
-|   `-- lib/
-|-- portable-exe/
-|   |-- SDA++.exe
-|   |-- maFiles/
-|   `-- ...
-|-- LICENSE
-`-- README.md
-```
-
-## Building From Source
-
-Requirements:
-
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- Visual Studio 2022 or another compatible .NET build environment
-
-Build:
+## Development
 
 ```powershell
-dotnet build .\open-source\SteamDesktopAuthenticator.sln -c Release
+dotnet test open-source/SDAPlusPlus.Core.Tests/SDAPlusPlus.Core.Tests.csproj -c Release
+dotnet run --project open-source/SDAPlusPlus.Desktop/SDAPlusPlus.Desktop.csproj -c Release
 ```
 
-GitHub Actions runs the same Windows Release build for every push and pull request. It also rejects account secrets from tracked files and generated portable packages. Tags matching `v*` create or update a GitHub Release with a clean portable ZIP.
+The release workflow tests Core, builds Avalonia and publishes an autonomous Windows x64 archive. Reproduce the privacy-safe screenshots with:
 
-## Disclaimer
+```powershell
+dotnet run --project tools/SDAPlusPlus.Screenshots -c Release
+```
 
-SDA++ is an unofficial Steam Guard desktop application inspired by the original Steam Desktop Authenticator project and is not affiliated with Valve or Steam.
+See [source layout](open-source/README.md), [screenshot provenance](docs/screenshots/README.md) and [1.7.4 verification notes](docs/releases/1.7.4.md).
 
-Use it at your own risk and always keep secure backups of your authentication files.
-
-## Credits
-
-- Based on Steam Desktop Authenticator
-- Extended and developed as the independent SDA++ project
+Based on the original Steam Desktop Authenticator and SteamAuth projects. See [LICENSE](LICENSE) and the bundled library notices.

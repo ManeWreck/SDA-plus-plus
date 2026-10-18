@@ -1,14 +1,5 @@
-# Portable Build
+# Downloads moved to Releases
 
-This folder contains the clean Windows build of SDA++ 1.6.1 prepared for public sharing.
+The main desktop is now Avalonia. Download the complete Windows x64 ZIP from https://github.com/ManeWreck/SDA-plus-plus/releases/latest.
 
-## Contents
-
-- `SDA++.exe` and required runtime libraries
-- an empty `maFiles/` folder ready for first launch
-
-## Important
-
-- No personal accounts or cloud secrets are included here.
-- After the first launch, SDA++ will create runtime files inside `maFiles/`.
-- Do not commit generated `maFiles`, `manifest.json`, backups, or saved credentials back into git.
+Do not use old executables from repository history. No account data is distributed with the release.

@@ -15,6 +15,16 @@ namespace Steam_Desktop_Authenticator
         private static readonly Dictionary<Button, bool> ButtonAccentMap = new Dictionary<Button, bool>();
         private static readonly HashSet<Button> HoveredButtons = new HashSet<Button>();
         private static readonly HashSet<Button> PressedButtons = new HashSet<Button>();
+        private static readonly HashSet<Button> NavigationButtons = new HashSet<Button>();
+        private static readonly HashSet<Button> SelectedNavigationButtons = new HashSet<Button>();
+        private static readonly HashSet<CheckBox> ToggleRows = new HashSet<CheckBox>();
+        private static readonly Dictionary<ComboBox, ModernComboHost> ComboHosts = new Dictionary<ComboBox, ModernComboHost>();
+        private static readonly Dictionary<NumericUpDown, ModernNumericHost> NumericHosts = new Dictionary<NumericUpDown, ModernNumericHost>();
+        private static readonly Dictionary<CheckBox, float> ToggleProgress = new Dictionary<CheckBox, float>();
+        private static readonly Dictionary<CheckBox, float> ToggleTargets = new Dictionary<CheckBox, float>();
+        private static readonly Dictionary<Panel, float> FieldFocusProgress = new Dictionary<Panel, float>();
+        private static readonly Dictionary<Panel, float> FieldFocusTargets = new Dictionary<Panel, float>();
+        private static readonly Timer UiAnimationTimer = CreateUiAnimationTimer();
 
         [DllImport("user32.dll")]
         private static extern bool ReleaseCapture();
@@ -22,7 +32,7 @@ namespace Steam_Desktop_Authenticator
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
 
-        public static int HeaderHeight => 38;
+        public static int HeaderHeight => Branding.Density == UiDensity.Compact ? 38 : 42;
 
         public static void AttachWindowChrome(Form form, bool showMinimize, bool showMaximize)
         {
@@ -54,7 +64,7 @@ namespace Steam_Desktop_Authenticator
                 Text = form.Text,
                 TextAlign = ContentAlignment.MiddleLeft,
                 ForeColor = Branding.HeadingText,
-                Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Regular, GraphicsUnit.Point),
+                Font = new Font("Segoe UI Variable Text", 10F, FontStyle.Regular, GraphicsUnit.Point),
                 Padding = new Padding(14, 0, 0, 0)
             };
 
@@ -157,8 +167,50 @@ namespace Steam_Desktop_Authenticator
             button.MouseUp += RoundedButtonMouseUp;
             button.Resize -= ButtonResize;
             button.Resize += ButtonResize;
-            ApplyRoundedRegion(button, 8);
+            ApplyRoundedRegion(button, Branding.ControlRadius);
             button.Invalidate();
+        }
+
+        public static void StyleNavigationButton(Button button, bool selected)
+        {
+            if (button == null) return;
+            NavigationButtons.Add(button);
+            if (selected) SelectedNavigationButtons.Add(button);
+            else SelectedNavigationButtons.Remove(button);
+            RoundButton(button, false);
+            button.Font = new Font("Segoe UI Variable Text", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
+            button.Padding = new Padding(18, 0, 8, 0);
+            button.Invalidate();
+        }
+
+        public static void StyleToggleRow(CheckBox checkBox)
+        {
+            if (checkBox == null)
+            {
+                return;
+            }
+
+            checkBox.Appearance = Appearance.Button;
+            checkBox.AutoSize = false;
+            checkBox.FlatStyle = FlatStyle.Flat;
+            checkBox.FlatAppearance.BorderSize = 0;
+            checkBox.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            checkBox.FlatAppearance.MouseDownBackColor = Color.Transparent;
+            checkBox.BackColor = Color.Transparent;
+            checkBox.ForeColor = Branding.HeadingText;
+            checkBox.UseVisualStyleBackColor = false;
+            checkBox.Padding = Padding.Empty;
+            checkBox.Paint -= PaintToggleRow;
+            checkBox.Paint += PaintToggleRow;
+            checkBox.CheckedChanged -= ToggleRowChanged;
+            checkBox.CheckedChanged += ToggleRowChanged;
+            ToggleRows.Add(checkBox);
+            if (!ToggleProgress.ContainsKey(checkBox))
+            {
+                ToggleProgress[checkBox] = checkBox.Checked ? 1F : 0F;
+                ToggleTargets[checkBox] = ToggleProgress[checkBox];
+            }
+            checkBox.Invalidate();
         }
 
         public static Panel WrapTextBox(TextBox textBox, int horizontalPadding = 10, int verticalPadding = 6)
@@ -225,6 +277,8 @@ namespace Steam_Desktop_Authenticator
             };
 
             shell.Click += (_, _) => textBox.Focus();
+            FieldFocusProgress[shell] = textBox.Focused ? 1F : 0F;
+            FieldFocusTargets[shell] = FieldFocusProgress[shell];
             shell.Paint += (_, e) =>
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -234,17 +288,24 @@ namespace Steam_Desktop_Authenticator
                 }
 
                 Rectangle rect = new Rectangle(0, 0, shell.Width - 1, shell.Height - 1);
-                bool focused = textBox.Focused;
+                float focus = FieldFocusProgress.TryGetValue(shell, out float progress) ? progress : 0F;
 
-                using GraphicsPath path = CreateRoundedPath(rect, 10);
+                using GraphicsPath path = CreateRoundedPath(rect, Branding.ControlRadius + 2);
                 using SolidBrush fillBrush = new SolidBrush(Color.FromArgb(196, Branding.AccentDark));
-                using Pen borderPen = new Pen(focused ? Branding.Accent : Color.FromArgb(150, Branding.Outline));
+                using Pen borderPen = new Pen(
+                    Blend(Color.FromArgb(150, Branding.Outline), Branding.Accent, focus),
+                    1F + (focus * 0.6F));
                 e.Graphics.FillPath(fillBrush, path);
                 e.Graphics.DrawPath(borderPen, path);
             };
 
-            textBox.Enter += (_, _) => shell.Invalidate();
-            textBox.Leave += (_, _) => shell.Invalidate();
+            textBox.Enter += (_, _) => StartFieldFocusAnimation(shell, true);
+            textBox.Leave += (_, _) => StartFieldFocusAnimation(shell, false);
+            shell.Disposed += (_, _) =>
+            {
+                FieldFocusProgress.Remove(shell);
+                FieldFocusTargets.Remove(shell);
+            };
             return shell;
         }
 
@@ -303,7 +364,7 @@ namespace Steam_Desktop_Authenticator
                 }
 
                 Rectangle rect = new Rectangle(0, 0, shell.Width - 1, shell.Height - 1);
-                using GraphicsPath path = CreateRoundedPath(rect, 12);
+                using GraphicsPath path = CreateRoundedPath(rect, Branding.CardRadius);
                 using SolidBrush fillBrush = new SolidBrush(Color.FromArgb(196, Branding.AccentDark));
                 using Pen borderPen = new Pen(Color.FromArgb(150, Branding.Outline));
                 e.Graphics.FillPath(fillBrush, path);
@@ -320,9 +381,140 @@ namespace Steam_Desktop_Authenticator
                 return;
             }
 
-            comboBox.FlatStyle = FlatStyle.Flat;
-            comboBox.BackColor = Branding.AccentDark;
-            comboBox.ForeColor = Branding.HeadingText;
+            if (ComboHosts.TryGetValue(comboBox, out ModernComboHost existingHost))
+            {
+                existingHost.Invalidate();
+                return;
+            }
+
+            if (comboBox.Parent == null)
+            {
+                return;
+            }
+
+            Control parent = comboBox.Parent;
+            int childIndex = parent.Controls.GetChildIndex(comboBox);
+            ModernComboHost host = new ModernComboHost(comboBox)
+            {
+                Location = comboBox.Location,
+                Size = new Size(comboBox.Width, Math.Max(32, comboBox.Height)),
+                Anchor = comboBox.Anchor,
+                Font = comboBox.Font,
+                Enabled = comboBox.Enabled,
+                Tag = "modern-combo-host"
+            };
+            parent.Controls.Add(host);
+            parent.Controls.SetChildIndex(host, childIndex);
+            parent.Controls.Remove(comboBox);
+            host.Controls.Add(comboBox);
+            comboBox.Visible = false;
+            comboBox.Location = Point.Empty;
+            ComboHosts[comboBox] = host;
+        }
+
+        public static void RoundNumericUpDown(NumericUpDown numeric)
+        {
+            if (numeric == null)
+            {
+                return;
+            }
+
+            if (NumericHosts.TryGetValue(numeric, out ModernNumericHost existingHost))
+            {
+                existingHost.Invalidate();
+                return;
+            }
+
+            if (numeric.Parent == null)
+            {
+                return;
+            }
+
+            Control parent = numeric.Parent;
+            int childIndex = parent.Controls.GetChildIndex(numeric);
+            ModernNumericHost host = new ModernNumericHost(numeric)
+            {
+                Location = numeric.Location,
+                Size = new Size(Math.Max(100, numeric.Width), Math.Max(32, numeric.Height)),
+                Anchor = numeric.Anchor,
+                Font = numeric.Font,
+                Enabled = numeric.Enabled,
+                Tag = "modern-numeric-host"
+            };
+            parent.Controls.Add(host);
+            parent.Controls.SetChildIndex(host, childIndex);
+            parent.Controls.Remove(numeric);
+            host.Controls.Add(numeric);
+            numeric.Visible = false;
+            numeric.Location = Point.Empty;
+            NumericHosts[numeric] = host;
+        }
+
+        public static void RefreshTheme(Control root)
+        {
+            if (root == null || root.IsDisposed)
+            {
+                return;
+            }
+
+            if (root is Form form)
+            {
+                form.BackColor = Branding.WindowBackground;
+                form.ForeColor = Branding.HeadingText;
+            }
+            else if (root is Panel panel && Equals(panel.Tag, "modern-titlebar"))
+            {
+                panel.BackColor = Branding.AccentDark;
+                foreach (Button windowButton in panel.Controls.OfType<Button>())
+                {
+                    windowButton.BackColor = Branding.AccentDark;
+                    windowButton.ForeColor = Branding.MutedText;
+                    windowButton.FlatAppearance.MouseOverBackColor = windowButton.Text == "X"
+                        ? Branding.Danger
+                        : Branding.AccentSoft;
+                }
+            }
+            else if (root is Panel workspaceSurface && Equals(workspaceSurface.Tag, "workspace-surface"))
+            {
+                workspaceSurface.BackColor = Branding.WindowBackground;
+            }
+            else if (root is TextBox textBox)
+            {
+                textBox.BackColor = Branding.AccentDark;
+                textBox.ForeColor = Branding.HeadingText;
+            }
+            else if (root is ComboBox comboBox)
+            {
+                RoundComboBox(comboBox);
+            }
+            else if (root is ModernComboHost or ModernNumericHost)
+            {
+                root.Invalidate();
+            }
+            else if (root is ListBox listBox)
+            {
+                listBox.BackColor = Branding.AccentDark;
+                listBox.ForeColor = Branding.HeadingText;
+            }
+            else if (root is CheckBox checkBox && ToggleRows.Contains(checkBox))
+            {
+                StyleToggleRow(checkBox);
+            }
+            else if (root is GroupBox groupBox)
+            {
+                groupBox.ForeColor = Branding.HeadingText;
+            }
+            else if (root is Button button && ButtonAccentMap.TryGetValue(button, out bool accent))
+            {
+                RoundButton(button, accent);
+            }
+
+            foreach (Control child in root.Controls)
+            {
+                RefreshTheme(child);
+            }
+
+            root.Invalidate();
         }
 
         public static void PaintGlassBackground(object sender, PaintEventArgs e)
@@ -338,14 +530,16 @@ namespace Steam_Desktop_Authenticator
                 return;
             }
 
-            using (LinearGradientBrush brush = new LinearGradientBrush(bounds, Color.FromArgb(18, 22, 30), Color.FromArgb(11, 13, 18), 90f))
+            using (LinearGradientBrush brush = new LinearGradientBrush(bounds, Branding.CardBackground, Branding.WindowBackground, 108f))
             {
                 e.Graphics.FillRectangle(brush, bounds);
             }
 
-            using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(28, Branding.Accent)))
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(18, Branding.Accent)))
             {
-                e.Graphics.FillEllipse(glowBrush, new Rectangle(bounds.Width - 220, -84, 240, 180));
+                e.Graphics.FillEllipse(glowBrush, new Rectangle(bounds.Width - 250, -118, 300, 220));
+                e.Graphics.FillEllipse(glowBrush, new Rectangle(-180, bounds.Height - 90, 260, 180));
             }
 
             using (Pen borderPen = new Pen(Color.FromArgb(126, Branding.Outline)))
@@ -401,17 +595,21 @@ namespace Steam_Desktop_Authenticator
             }
 
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            e.Graphics.Clear(group.Parent?.BackColor ?? Branding.WindowBackground);
+            Color surface = ResolveSurfaceColor(group.Parent);
+            e.Graphics.Clear(surface);
             if (group.Width <= 3 || group.Height <= 10)
             {
                 return;
             }
 
-            Rectangle rect = new Rectangle(1, 8, group.Width - 3, group.Height - 10);
-            using (GraphicsPath path = CreateRoundedPath(rect, 16))
-            using (SolidBrush fillBrush = new SolidBrush(Color.FromArgb(214, Branding.CardBackground)))
-            using (Pen borderPen = new Pen(Color.FromArgb(126, Branding.Outline)))
-            using (SolidBrush titleBackground = new SolidBrush(group.Parent?.BackColor ?? Branding.WindowBackground))
+            Rectangle rect = new Rectangle(1, 1, group.Width - 3, group.Height - 3);
+            using (GraphicsPath path = CreateRoundedPath(rect, Branding.CardRadius))
+            using (LinearGradientBrush fillBrush = new LinearGradientBrush(
+                rect,
+                Color.FromArgb(232, Branding.CardBackground),
+                Color.FromArgb(205, Branding.AccentDark),
+                92F))
+            using (Pen borderPen = new Pen(Color.FromArgb(138, Branding.Outline)))
             {
                 e.Graphics.FillPath(fillBrush, path);
                 e.Graphics.DrawPath(borderPen, path);
@@ -419,10 +617,14 @@ namespace Steam_Desktop_Authenticator
                 string title = group.Tag as string ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(title))
                 {
-                    Size textSize = TextRenderer.MeasureText(title, group.Font);
-                    Rectangle textRect = new Rectangle(16, 0, textSize.Width + 8, 20);
-                    e.Graphics.FillRectangle(titleBackground, textRect);
-                    TextRenderer.DrawText(e.Graphics, title, group.Font, new Point(20, 1), Branding.MutedText);
+                    using Font titleFont = new Font("Segoe UI Semibold", 7.5F, FontStyle.Bold, GraphicsUnit.Point);
+                    TextRenderer.DrawText(
+                        e.Graphics,
+                        title.ToUpperInvariant(),
+                        titleFont,
+                        new Rectangle(16, 9, group.Width - 32, 18),
+                        Branding.MutedText,
+                        TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
                 }
             }
         }
@@ -431,7 +633,7 @@ namespace Steam_Desktop_Authenticator
         {
             if (sender is Button button)
             {
-                ApplyRoundedRegion(button, 8);
+                ApplyRoundedRegion(button, Branding.ControlRadius);
                 button.Invalidate();
             }
         }
@@ -483,17 +685,26 @@ namespace Steam_Desktop_Authenticator
             bool accent = ButtonAccentMap.TryGetValue(button, out bool isAccent) && isAccent;
             bool hovered = HoveredButtons.Contains(button);
             bool pressed = PressedButtons.Contains(button);
+            bool navigation = NavigationButtons.Contains(button);
+            bool navigationSelected = SelectedNavigationButtons.Contains(button);
 
-            Color fill = accent ? Branding.Accent : Color.FromArgb(164, Branding.CardBackground);
-            Color border = accent ? Color.FromArgb(185, Branding.Accent) : Color.FromArgb(170, Branding.Outline);
+            Color fill = accent ? Branding.Accent : Color.FromArgb(142, Branding.CardBackground);
+            Color border = accent ? Color.FromArgb(190, Branding.Accent) : Color.FromArgb(115, Branding.Outline);
+            if (navigation)
+            {
+                fill = navigationSelected ? Color.FromArgb(76, Branding.AccentSoft) : Color.FromArgb(34, Branding.CardBackground);
+                border = navigationSelected ? Color.FromArgb(150, Branding.Accent) : Color.FromArgb(58, Branding.Outline);
+            }
 
             if (pressed)
             {
-                fill = accent ? Color.FromArgb(86, 126, 238) : Color.FromArgb(92, 100, 118);
+                fill = accent
+                    ? Blend(Branding.Accent, Branding.WindowBackground, 0.18f)
+                    : Blend(Branding.CardBackground, Branding.Accent, 0.22f);
             }
             else if (hovered)
             {
-                fill = accent ? Color.FromArgb(122, 160, 255) : Branding.AccentSoft;
+                fill = accent ? Blend(Branding.Accent, Color.White, 0.12f) : Branding.AccentSoft;
             }
 
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -504,23 +715,175 @@ namespace Steam_Desktop_Authenticator
             }
 
             Rectangle rect = new Rectangle(0, 0, button.Width - 1, button.Height - 1);
-            using (GraphicsPath path = CreateRoundedPath(rect, 8))
-            using (SolidBrush fillBrush = new SolidBrush(fill))
+            using (GraphicsPath path = CreateRoundedPath(rect, Branding.ControlRadius))
             using (Pen borderPen = new Pen(border))
             {
-                e.Graphics.FillPath(fillBrush, path);
+                if (accent)
+                {
+                    using LinearGradientBrush gradient = new LinearGradientBrush(
+                        rect,
+                        Blend(fill, Color.White, 0.10f),
+                        Blend(fill, Branding.WindowBackground, 0.10f),
+                        0F);
+                    e.Graphics.FillPath(gradient, path);
+                }
+                else
+                {
+                    using SolidBrush fillBrush = new SolidBrush(fill);
+                    e.Graphics.FillPath(fillBrush, path);
+                }
                 e.Graphics.DrawPath(borderPen, path);
             }
 
-              Rectangle textRect = new Rectangle(0, 0, button.Width, button.Height);
+            if (navigationSelected)
+            {
+                using SolidBrush indicator = new SolidBrush(Branding.Accent);
+                e.Graphics.FillRectangle(indicator, 1, 10, 3, Math.Max(8, button.Height - 20));
+            }
+
+              Rectangle textRect = navigation
+                  ? new Rectangle(18, 0, Math.Max(1, button.Width - 26), button.Height)
+                  : new Rectangle(0, 0, button.Width, button.Height);
               TextRenderer.DrawText(
                   e.Graphics,
                   button.Text,
                   button.Font,
                   textRect,
                   button.ForeColor,
-                  TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+                  (navigation ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter)
+                  | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
           }
+
+        private static void ToggleRowChanged(object sender, EventArgs e)
+        {
+            if (sender is CheckBox checkBox)
+            {
+                ToggleTargets[checkBox] = checkBox.Checked ? 1F : 0F;
+                UiAnimationTimer.Start();
+                checkBox.Invalidate();
+            }
+        }
+
+        private static void PaintToggleRow(object sender, PaintEventArgs e)
+        {
+            if (sender is not CheckBox checkBox || checkBox.Width < 4 || checkBox.Height < 4)
+            {
+                return;
+            }
+
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            e.Graphics.Clear(Branding.CardBackground);
+
+            Rectangle row = new Rectangle(0, 0, checkBox.Width - 1, checkBox.Height - 1);
+            using (GraphicsPath rowPath = CreateRoundedPath(row, 10))
+            using (SolidBrush rowFill = new SolidBrush(Color.FromArgb(72, Branding.AccentDark)))
+            using (Pen rowBorder = new Pen(Color.FromArgb(64, Branding.Outline)))
+            {
+                e.Graphics.FillPath(rowFill, rowPath);
+                e.Graphics.DrawPath(rowBorder, rowPath);
+            }
+
+            int switchWidth = 38;
+            int switchHeight = 20;
+            Rectangle switchRect = new Rectangle(
+                checkBox.Width - switchWidth - 10,
+                (checkBox.Height - switchHeight) / 2,
+                switchWidth,
+                switchHeight);
+            float progress = ToggleProgress.TryGetValue(checkBox, out float currentProgress)
+                ? currentProgress
+                : checkBox.Checked ? 1F : 0F;
+            Color switchFill = Blend(Color.FromArgb(170, Branding.AccentDark), Branding.Accent, progress);
+            using (GraphicsPath switchPath = CreateRoundedPath(switchRect, 10))
+            using (SolidBrush switchBrush = new SolidBrush(switchFill))
+            using (Pen switchBorder = new Pen(Blend(Branding.Outline, Branding.Accent, progress)))
+            {
+                e.Graphics.FillPath(switchBrush, switchPath);
+                e.Graphics.DrawPath(switchBorder, switchPath);
+            }
+
+            int knobSize = 14;
+            int knobStart = switchRect.Left + 3;
+            int knobEnd = switchRect.Right - knobSize - 3;
+            int knobX = knobStart + (int)Math.Round((knobEnd - knobStart) * progress);
+            Rectangle knob = new Rectangle(knobX, switchRect.Top + 3, knobSize, knobSize);
+            using (SolidBrush knobBrush = new SolidBrush(Blend(Branding.MutedText, Color.White, progress)))
+            {
+                e.Graphics.FillEllipse(knobBrush, knob);
+            }
+
+            Rectangle textRect = new Rectangle(12, 2, Math.Max(1, switchRect.Left - 22), checkBox.Height - 4);
+            TextRenderer.DrawText(
+                e.Graphics,
+                checkBox.Text,
+                checkBox.Font,
+                textRect,
+                checkBox.Enabled ? Branding.HeadingText : Branding.MutedText,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+        }
+
+        private static Timer CreateUiAnimationTimer()
+        {
+            Timer timer = new Timer { Interval = 15 };
+            timer.Tick += UiAnimationTick;
+            return timer;
+        }
+
+        private static void StartFieldFocusAnimation(Panel shell, bool focused)
+        {
+            FieldFocusTargets[shell] = focused ? 1F : 0F;
+            UiAnimationTimer.Start();
+            shell.Invalidate();
+        }
+
+        private static void UiAnimationTick(object sender, EventArgs e)
+        {
+            bool active = false;
+            foreach (CheckBox checkBox in ToggleProgress.Keys.ToArray())
+            {
+                if (checkBox.IsDisposed)
+                {
+                    ToggleProgress.Remove(checkBox);
+                    ToggleTargets.Remove(checkBox);
+                    continue;
+                }
+
+                float target = ToggleTargets.TryGetValue(checkBox, out float requested)
+                    ? requested
+                    : checkBox.Checked ? 1F : 0F;
+                float next = AnimateValue(ToggleProgress[checkBox], target);
+                ToggleProgress[checkBox] = next;
+                checkBox.Invalidate();
+                active |= Math.Abs(next - target) > 0.001F;
+            }
+
+            foreach (Panel shell in FieldFocusProgress.Keys.ToArray())
+            {
+                if (shell.IsDisposed)
+                {
+                    FieldFocusProgress.Remove(shell);
+                    FieldFocusTargets.Remove(shell);
+                    continue;
+                }
+
+                float target = FieldFocusTargets.TryGetValue(shell, out float requested) ? requested : 0F;
+                float next = AnimateValue(FieldFocusProgress[shell], target);
+                FieldFocusProgress[shell] = next;
+                shell.Invalidate();
+                active |= Math.Abs(next - target) > 0.001F;
+            }
+
+            if (!active)
+            {
+                UiAnimationTimer.Stop();
+            }
+        }
+
+        private static float AnimateValue(float current, float target)
+        {
+            float next = current + ((target - current) * 0.24F);
+            return Math.Abs(next - target) < 0.01F ? target : next;
+        }
 
         private static void ApplyRoundedRegion(Control control, int radius)
         {
@@ -546,6 +909,31 @@ namespace Steam_Desktop_Authenticator
             path.AddArc(rect.X, rect.Bottom - diameter, diameter, diameter, 90, 90);
             path.CloseFigure();
             return path;
+        }
+
+        private static Color Blend(Color first, Color second, float amount)
+        {
+            float inverse = 1f - amount;
+            return Color.FromArgb(
+                (int)((first.R * inverse) + (second.R * amount)),
+                (int)((first.G * inverse) + (second.G * amount)),
+                (int)((first.B * inverse) + (second.B * amount)));
+        }
+
+        private static Color ResolveSurfaceColor(Control control)
+        {
+            Control current = control;
+            while (current != null)
+            {
+                if (current.BackColor.A == byte.MaxValue)
+                {
+                    return current.BackColor;
+                }
+
+                current = current.Parent;
+            }
+
+            return Branding.WindowBackground;
         }
     }
 }

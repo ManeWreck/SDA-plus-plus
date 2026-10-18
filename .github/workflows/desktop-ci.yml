@@ -1,4 +1,4 @@
-name: Desktop build and safety checks
+name: Avalonia desktop build and release
 
 on:
   push:
@@ -15,48 +15,37 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Reject tracked account secrets
-        shell: pwsh
-        run: ./.github/scripts/assert-no-sensitive-files.ps1 -TrackedFiles
-
-      - name: Set up .NET 8
-        uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-
-      - name: Restore
-        run: dotnet restore "open-source/SteamDesktopAuthenticator.sln"
-
-      - name: Build release
-        run: dotnet build "open-source/SteamDesktopAuthenticator.sln" --configuration Release --no-restore
-
-      - name: Prepare portable package
+      - name: Reject tracked private runtime data
+        shell: pwsh
+        run: ./.github/scripts/assert-no-sensitive-files.ps1 -TrackedFiles
+      - name: Test Core
+        run: dotnet test open-source/SDAPlusPlus.Core.Tests/SDAPlusPlus.Core.Tests.csproj -c Release
+      - name: Render documentation views with isolated demo services
+        run: dotnet run --project tools/SDAPlusPlus.Screenshots -c Release -- artifacts/screenshots
+      - name: Publish Avalonia Windows x64
+        run: dotnet publish open-source/SDAPlusPlus.Desktop/SDAPlusPlus.Desktop.csproj -c Release -r win-x64 --self-contained true -o artifacts/avalonia -p:DebugType=None -p:DebugSymbols=false
+      - name: Package and verify
         shell: pwsh
         run: |
-          $source = "open-source/Steam Desktop Authenticator/bin/Release/net8.0-windows"
-          $stage = "artifacts/SDA++"
-          New-Item -ItemType Directory -Force -Path $stage | Out-Null
-          Copy-Item -Path "$source/*" -Destination $stage -Recurse -Force
-          Remove-Item -LiteralPath "$stage/maFiles" -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path "$stage/maFiles" | Out-Null
-          Set-Content -LiteralPath "$stage/maFiles/README.txt" -Encoding UTF8 -Value "Place your own .maFile backups here. Never publish this folder."
-          ./.github/scripts/assert-no-sensitive-files.ps1 -ScanRoot $stage
-          $version = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME.TrimStart("v") } else { "ci" }
-          $archive = "artifacts/SDA++-$version-portable.zip"
-          Compress-Archive -Path "$stage/*" -DestinationPath $archive -Force
+          [xml]$project = Get-Content open-source/SDAPlusPlus.Desktop/SDAPlusPlus.Desktop.csproj
+          $version = [string]$project.Project.PropertyGroup.Version
+          if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") { throw "Tag/version mismatch" }
+          Copy-Item docs/releases/1.7.4.md artifacts/avalonia/RELEASE-NOTES.md
+          ./.github/scripts/assert-no-sensitive-files.ps1 -ScanRoot artifacts/avalonia
+          $archive = "artifacts/SDAplusplus-Avalonia-$version-win-x64.zip"
+          Compress-Archive -Path artifacts/avalonia/* -DestinationPath $archive
           $checksum = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
-          Set-Content -LiteralPath "$archive.sha256" -Encoding ASCII -Value "$checksum  $(Split-Path -Leaf $archive)"
-
-      - name: Upload portable artifact
-        uses: actions/upload-artifact@v4
+          Set-Content -LiteralPath "$archive.sha256" -Encoding ascii -Value "$checksum  $(Split-Path -Leaf $archive)"
+      - uses: actions/upload-artifact@v4
         with:
-          name: SDA++-windows-portable
+          name: SDAplusplus-Avalonia-windows-x64
           path: |
-            artifacts/SDA++-*-portable.zip
-            artifacts/SDA++-*-portable.zip.sha256
+            artifacts/SDAplusplus-Avalonia-*-win-x64.zip
+            artifacts/SDAplusplus-Avalonia-*-win-x64.zip.sha256
           if-no-files-found: error
 
   release:
@@ -66,24 +55,26 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download portable artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: SDA++-windows-portable
+          name: SDAplusplus-Avalonia-windows-x64
           path: artifacts
-
-      - name: Publish GitHub release asset
+      - name: Publish Avalonia release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          $tag = "${{ github.ref_name }}"
-          $asset = (Get-ChildItem -LiteralPath artifacts -Filter "SDA++-*-portable.zip" -File | Select-Object -First 1).FullName
-          $checksum = "$asset.sha256"
+          $tag = $env:GITHUB_REF_NAME
+          $assets = @(Get-ChildItem artifacts -File | ForEach-Object FullName)
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag $asset $checksum --title "SDA++ $tag" --generate-notes
+            gh release create $tag @assets --title "SDA++ $tag — Avalonia Desktop" --notes-file docs/releases/1.7.4.md --latest
+            if ($LASTEXITCODE -ne 0) { throw "Release creation failed" }
           } else {
-            gh release upload $tag $asset $checksum --clobber
+            gh release upload $tag @assets --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Asset upload failed" }
+            gh release edit $tag --title "SDA++ $tag — Avalonia Desktop" --notes-file docs/releases/1.7.4.md --latest
+            if ($LASTEXITCODE -ne 0) { throw "Release update failed" }
           }

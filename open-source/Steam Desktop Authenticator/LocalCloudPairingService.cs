@@ -26,16 +26,19 @@ namespace Steam_Desktop_Authenticator
     internal sealed class LocalCloudPairingService : IDisposable
     {
         private const int MaxFrameSize = 64 * 1024;
-        private const string RelayEndpoint = "https://sdaplusplus-pairing-relay.eeswrtdtg4t5.workers.dev";
         private static readonly HttpClient RelayClient = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+        private readonly string relayEndpoint;
         private readonly TcpListener listener;
         private readonly ECDiffieHellman keyAgreement;
         private readonly byte[] sessionId;
         private readonly byte[] relayToken;
+        private readonly DeviceIdentityInfo deviceIdentity;
         private readonly CancellationTokenSource lifetime = new CancellationTokenSource(TimeSpan.FromMinutes(2));
 
-        public LocalCloudPairingService()
+        public LocalCloudPairingService(string relayEndpoint)
         {
+            this.relayEndpoint = PairingRelayProfile.NormalizeEndpoint(relayEndpoint);
+            deviceIdentity = DeviceIdentityStore.GetInfo();
             sessionId = RandomNumberGenerator.GetBytes(16);
             relayToken = RandomNumberGenerator.GetBytes(32);
             keyAgreement = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
@@ -92,7 +95,7 @@ namespace Steam_Desktop_Authenticator
 
         private async Task<CloudPairingResult> WaitForRelayResultAsync(CancellationToken cancellationToken)
         {
-            string relayUrl = RelayEndpoint.TrimEnd('/') + "/v1/pair/" + Base64UrlEncode(sessionId);
+            string relayUrl = relayEndpoint + "/v1/pair/" + Base64UrlEncode(sessionId);
             string token = Base64UrlEncode(relayToken);
             while (true)
             {
@@ -190,17 +193,28 @@ namespace Steam_Desktop_Authenticator
         private string BuildPairingUri()
         {
             int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            string sessionIdText = Base64UrlEncode(sessionId);
+            string ephemeralPublicKey = Convert.ToBase64String(keyAgreement.ExportSubjectPublicKeyInfo());
+            long expiresAt = new DateTimeOffset(ExpiresUtc).ToUnixTimeSeconds();
+            byte[] identityProof = PairingIdentityProof.CanonicalPayload(sessionIdText, ephemeralPublicKey, expiresAt);
+            string identitySignature;
+            try { identitySignature = DeviceIdentityStore.Sign(identityProof); }
+            finally { CryptographicOperations.ZeroMemory(identityProof); }
             var descriptor = new
             {
                 v = 2,
                 direction = "to-desktop",
-                sid = Base64UrlEncode(sessionId),
+                sid = sessionIdText,
                 port,
                 hosts = GetLanAddresses(),
-                relay = RelayEndpoint,
+                relay = relayEndpoint,
                 relay_token = Base64UrlEncode(relayToken),
-                pk = Convert.ToBase64String(keyAgreement.ExportSubjectPublicKeyInfo()),
-                exp = new DateTimeOffset(ExpiresUtc).ToUnixTimeSeconds()
+                pk = ephemeralPublicKey,
+                exp = expiresAt,
+                device_id = deviceIdentity.DeviceId,
+                device_pk = deviceIdentity.PublicKeyDerBase64Url,
+                device_key_protection = deviceIdentity.Protection,
+                device_signature = identitySignature
             };
             string encoded = Base64UrlEncode(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(descriptor)));
             return "sdapp-pair://v2?p=" + encoded;

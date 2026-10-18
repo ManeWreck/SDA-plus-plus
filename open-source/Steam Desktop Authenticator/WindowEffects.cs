@@ -21,6 +21,9 @@ namespace Steam_Desktop_Authenticator
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int pvAttribute, int cbAttribute);
 
+        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+        private static extern int SetWindowTheme(IntPtr hwnd, string pszSubAppName, string pszSubIdList);
+
         public static void ApplyModernChrome(Form form)
         {
             if (!OperatingSystem.IsWindows() || form == null || form.IsDisposed || form.Handle == IntPtr.Zero)
@@ -33,6 +36,19 @@ namespace Steam_Desktop_Authenticator
             TrySetAttribute(form.Handle, DWMWA_CAPTION_COLOR, ColorToBgr(Branding.WindowBackground));
             TrySetAttribute(form.Handle, DWMWA_BORDER_COLOR, ColorToBgr(Branding.Outline));
             TrySetAttribute(form.Handle, DWMWA_TEXT_COLOR, ColorToBgr(Branding.HeadingText));
+        }
+
+        public static void ApplyDarkControlTheme(Control control)
+        {
+            if (!OperatingSystem.IsWindows() || control == null || control.IsDisposed) return;
+            void Apply()
+            {
+                if (!control.IsHandleCreated) return;
+                try { SetWindowTheme(control.Handle, "DarkMode_Explorer", null); } catch { }
+            }
+
+            if (control.IsHandleCreated) Apply();
+            else control.HandleCreated += (_, _) => Apply();
         }
 
         private static void TrySetAttribute(IntPtr handle, int attribute, int value)

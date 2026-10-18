@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using Newtonsoft.Json;
 
 namespace Steam_Desktop_Authenticator
 {
@@ -145,14 +146,41 @@ namespace Steam_Desktop_Authenticator
         {
             using OpenFileDialog dialog = new OpenFileDialog
             {
-                Filter = Localizer.Choose("Text files|*.txt;*.list|All files|*.*", "Текстовые файлы|*.txt;*.list|Все файлы|*.*")
+                Filter = Localizer.Choose(
+                    "Credential lists|*.json;*.txt;*.list|JSON files|*.json|Text files|*.txt;*.list|All files|*.*",
+                    "Списки логинов|*.json;*.txt;*.list|Файлы JSON|*.json|Текстовые файлы|*.txt;*.list|Все файлы|*.*")
             };
             if (dialog.ShowDialog(this) != DialogResult.OK)
             {
                 return;
             }
 
-            List<StoredCredentialsVault.StoredCredential> imported = vault.ParseCredentialPairs(dialog.FileName);
+            List<StoredCredentialsVault.StoredCredential> imported;
+            try
+            {
+                imported = vault.ParseCredentialPairs(dialog.FileName);
+            }
+            catch (JsonException)
+            {
+                MessageBox.Show(
+                    Localizer.Choose(
+                        "The JSON file is invalid. Use an array of \"login:password\" strings, or one login:password pair per line.",
+                        "Файл JSON поврежден. Используйте массив строк \"login:password\" или по одной паре login:password на строку."),
+                    Text,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+            catch (IOException)
+            {
+                MessageBox.Show(
+                    Localizer.Choose("The credentials file could not be read.", "Не удалось прочитать файл логинов."),
+                    Text,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
             if (imported.Count == 0)
             {
                 MessageBox.Show(Localizer.Choose("No valid login:password pairs were found.", "Не найдено валидных пар login:password."), Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -179,7 +207,9 @@ namespace Steam_Desktop_Authenticator
 
             SaveAll(existing);
             ReloadEntries();
-            lblStatus.Text = Localizer.Choose("Credentials imported.", "Логины импортированы.");
+            lblStatus.Text = Localizer.Choose(
+                $"Credentials imported: {imported.Count}.",
+                $"Логины импортированы: {imported.Count}.");
         }
 
         private void btnSaveEntry_Click(object sender, EventArgs e)

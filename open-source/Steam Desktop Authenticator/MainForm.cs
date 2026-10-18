@@ -5,6 +5,7 @@ using SteamAuth;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Net;
+using System.Net.Http;
 using Newtonsoft.Json;
 using System.Threading;
 using System.Drawing;
@@ -18,6 +19,7 @@ namespace Steam_Desktop_Authenticator
     {
         private SteamGuardAccount currentAccount = null;
         private SteamGuardAccount[] allAccounts;
+        private readonly HashSet<ulong> remoteAccountSteamIds = new HashSet<ulong>();
         private List<SteamGuardAccount> filteredAccounts = new List<SteamGuardAccount>();
         private List<string> updatedSessions = new List<string>();
         private Manifest manifest;
@@ -26,6 +28,7 @@ namespace Steam_Desktop_Authenticator
         private readonly StoredCredentialLoginService storedCredentialLoginService = new StoredCredentialLoginService();
         private readonly UpdateCheckService updateCheckService = new UpdateCheckService();
         private readonly System.Windows.Forms.Timer updateCheckTimer = new System.Windows.Forms.Timer { Interval = 6 * 60 * 60 * 1000 };
+        private readonly System.Windows.Forms.Timer deviceTrustTimer = new System.Windows.Forms.Timer { Interval = 60 * 1000 };
         private readonly HotkeyOverlayForm hotkeyOverlay = new HotkeyOverlayForm();
         private readonly Label lblAccountName = new Label();
         private readonly Label lblAccountHint = new Label();
@@ -38,9 +41,16 @@ namespace Steam_Desktop_Authenticator
         private readonly Panel panelTimeoutTrack = new Panel();
         private readonly Panel panelTimeoutFill = new Panel();
         private readonly Panel panelTopNav = new Panel();
+        private readonly Panel panelWorkspace = new Panel();
+        private readonly Panel panelAccountsColumn = new Panel();
+        private readonly Panel panelDetailsColumn = new Panel();
+        private readonly Label lblAccountsSection = new Label();
+        private readonly Label lblAccountsCount = new Label();
+        private readonly Label lblDashboardTitle = new Label();
+        private readonly Label lblDashboardSubtitle = new Label();
         private readonly Button btnNavFile = new Button();
         private readonly Button btnNavAccount = new Button();
-        private readonly Button btnAccountMonitoring = new Button();
+        private readonly Button btnNavSettings = new Button();
         private readonly LinkLabel lblFooterKofi = new LinkLabel();
         private readonly ToolStripMenuItem menuManageCredentials = new ToolStripMenuItem();
         private readonly ToolStripMenuItem menuConnectMobile = new ToolStripMenuItem();
@@ -68,10 +78,19 @@ namespace Steam_Desktop_Authenticator
         private bool suppressQrToggleEvents = false;
         private int timeoutBarValue = 0;
         private int timeoutBarMax = 30;
+        private float timeoutBarDisplayedValue = 0F;
+        private readonly System.Windows.Forms.Timer timeoutAnimationTimer = new System.Windows.Forms.Timer { Interval = 15 };
         private bool startupBatchAutoLoginAttempted = false;
         private bool updateCheckInProgress = false;
         private bool updateNotificationShown = false;
+        private bool deviceTrustCheckInProgress = false;
         private string updatePageUrl = Branding.GithubUrl;
+        private CancellationTokenSource remoteGuardCodeCts;
+        private bool remoteGuardCodeInProgress = false;
+        private string remoteGuardCode = string.Empty;
+        private long remoteGuardCodeValidUntil = 0;
+        private DateTime remoteGuardCodeRetryAt = DateTime.MinValue;
+        private int hoveredAccountIndex = -1;
 
         // Forms
         private TradePopupForm popupFrm = new TradePopupForm();
@@ -85,6 +104,7 @@ namespace Steam_Desktop_Authenticator
         public MainForm()
         {
             InitializeComponent();
+            Font = new Font("Segoe UI Variable Text", 9.25F, FontStyle.Regular, GraphicsUnit.Point);
             Icon = Branding.LoadAppIcon();
             trayIcon.Icon = Icon;
             accountToolStripMenuItem.DropDownItems.Insert(1, menuManageCredentials);
@@ -96,6 +116,8 @@ namespace Steam_Desktop_Authenticator
             menuAutoLoginAllAccounts.Click += menuAutoLoginAllAccounts_Click;
             menuAccountMonitoring.Click += menuAccountMonitoring_Click;
             updateCheckTimer.Tick += async (sender, args) => await CheckForUpdatesAsync();
+            deviceTrustTimer.Tick += async (sender, args) => await CheckDeviceTrustAsync();
+            timeoutAnimationTimer.Tick += timeoutAnimationTimer_Tick;
             DoubleBuffered = true;
             BuildModernLayout();
             ModernUi.AttachWindowChrome(this, true, false);
@@ -124,56 +146,93 @@ namespace Steam_Desktop_Authenticator
             int topOffset = ModernUi.HeaderHeight + 8;
 
             Text = $"{Branding.FullAppName} v{Application.ProductVersion}";
-            ClientSize = new Size(392, 668);
-            MinimumSize = new Size(408, 520);
+            ClientSize = new Size(820, 620);
+            MinimumSize = new Size(720, 560);
 
             menuStrip.Visible = false;
             panelTopNav.Location = new Point(12, topOffset + 6);
-            panelTopNav.Size = new Size(366, 28);
+            panelTopNav.Size = new Size(ClientSize.Width - 24, 44);
+            panelTopNav.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             panelTopNav.BackColor = Color.Transparent;
             Controls.Add(panelTopNav);
             panelTopNav.BringToFront();
 
-            ConfigureNavButton(btnNavFile, 0, 112);
-            ConfigureNavButton(btnNavAccount, 122, 146);
-            ConfigureNavButton(btnAccountMonitoring, 278, 88);
+            lblDashboardTitle.Font = new Font("Segoe UI Variable Display Semibold", 15F, FontStyle.Bold, GraphicsUnit.Point);
+            lblDashboardTitle.ForeColor = Branding.HeadingText;
+            lblDashboardTitle.SetBounds(4, 0, 280, 24);
+            lblDashboardSubtitle.Font = new Font("Segoe UI Variable Text", 8.75F, FontStyle.Regular, GraphicsUnit.Point);
+            lblDashboardSubtitle.ForeColor = Branding.MutedText;
+            lblDashboardSubtitle.SetBounds(4, 25, 420, 18);
+
+            ConfigureNavButton(btnNavFile, panelTopNav.Width - 300, 72);
+            ConfigureNavButton(btnNavAccount, panelTopNav.Width - 220, 124);
+            ConfigureNavButton(btnNavSettings, panelTopNav.Width - 88, 88);
+            btnNavFile.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnNavAccount.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnNavSettings.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            panelTopNav.Controls.Add(lblDashboardTitle);
+            panelTopNav.Controls.Add(lblDashboardSubtitle);
             panelTopNav.Controls.Add(btnNavFile);
             panelTopNav.Controls.Add(btnNavAccount);
-            panelTopNav.Controls.Add(btnAccountMonitoring);
+            panelTopNav.Controls.Add(btnNavSettings);
 
-            panelButtons.Location = new Point(12, topOffset + 40);
-            panelButtons.Size = new Size(366, 34);
-            btnAccountMonitoring.Click += menuAccountMonitoring_Click;
-            chkEnableQrHotkeys.Location = new Point(16, topOffset + 84);
+            panelButtons.Location = new Point(12, topOffset + 56);
+            panelButtons.Size = new Size(520, 38);
+            chkEnableQrHotkeys.Location = new Point(16, topOffset + 102);
             chkEnableQrHotkeys.Text = "";
             chkEnableQrHotkeys.ForeColor = Branding.MutedText;
+            lblStatus.Location = new Point(ClientSize.Width - 280, topOffset + 48);
+            lblStatus.Size = new Size(264, 18);
+            lblStatus.Anchor = AnchorStyles.Top | AnchorStyles.Right;
 
-            groupBox1.Location = new Point(12, topOffset + 112);
-            groupBox1.Size = new Size(366, 126);
+            panelWorkspace.Location = new Point(12, topOffset + 132);
+            panelWorkspace.Size = new Size(ClientSize.Width - 24, ClientSize.Height - topOffset - 174);
+            panelWorkspace.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            panelWorkspace.BackColor = Color.Transparent;
+            panelWorkspace.Controls.Add(panelAccountsColumn);
+            panelWorkspace.Controls.Add(panelDetailsColumn);
+            Controls.Add(panelWorkspace);
+
+            panelAccountsColumn.BackColor = Color.Transparent;
+            panelDetailsColumn.BackColor = Branding.WindowBackground;
+            panelDetailsColumn.Tag = "workspace-surface";
+
+            lblAccountsSection.Font = new Font("Segoe UI Semibold", 11F, FontStyle.Bold, GraphicsUnit.Point);
+            lblAccountsSection.ForeColor = Branding.HeadingText;
+            lblAccountsSection.Location = new Point(4, 0);
+            lblAccountsSection.Size = new Size(240, 24);
+            panelAccountsColumn.Controls.Add(lblAccountsSection);
+            lblAccountsCount.Font = new Font("Segoe UI Semibold", 8F, FontStyle.Bold, GraphicsUnit.Point);
+            lblAccountsCount.ForeColor = Branding.MutedText;
+            lblAccountsCount.TextAlign = ContentAlignment.MiddleRight;
+            panelAccountsColumn.Controls.Add(lblAccountsCount);
+
+            panelAccountsColumn.Controls.Add(listAccounts);
+            panelAccountsColumn.Controls.Add(label1);
+            panelAccountsColumn.Controls.Add(txtAccSearch);
+            panelDetailsColumn.Controls.Add(groupBox1);
+            panelDetailsColumn.Controls.Add(groupAccount);
+
             // Set the card padding before positioning its children. Changing it later
             // makes WinForms offset the anchored controls and clips the timeout bar.
             groupBox1.Padding = new Padding(14, 28, 14, 14);
-            txtLoginToken.Location = new Point(14, 34);
-            txtLoginToken.Size = new Size(286, 34);
-            btnCopy.Location = new Point(308, 34);
-            btnCopy.Size = new Size(44, 34);
-            pbTimeout.Location = new Point(14, 82);
-            pbTimeout.Size = new Size(338, 16);
-            groupAccount.Location = new Point(12, topOffset + 240);
-            groupAccount.Size = new Size(366, 142);
-            listAccounts.Location = new Point(12, topOffset + 408);
-            listAccounts.Size = new Size(366, 154);
-            txtAccSearch.Location = new Point(58, topOffset + 566);
-            txtAccSearch.Size = new Size(320, 22);
-            label1.Location = new Point(12, topOffset + 570);
-            labelUpdate.Location = new Point(12, topOffset + 604);
+            groupAccount.Text = "";
+            listAccounts.DrawMode = DrawMode.OwnerDrawFixed;
+            listAccounts.ItemHeight = 54;
+            listAccounts.Font = new Font("Segoe UI Variable Text", 9.25F, FontStyle.Regular, GraphicsUnit.Point);
+            listAccounts.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            txtAccSearch.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            label1.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+
+            labelUpdate.Location = new Point(12, ClientSize.Height - 26);
             labelUpdate.Size = new Size(52, 16);
-            labelVersion.Location = new Point(252, topOffset + 622);
+            labelUpdate.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            labelVersion.Location = new Point(ClientSize.Width - 142, ClientSize.Height - 26);
             labelVersion.Size = new Size(126, 16);
-            lblStatus.Location = new Point(226, topOffset + 85);
-            lblStatus.Size = new Size(152, 18);
-            lblFooterKofi.Location = new Point(70, topOffset + 604);
+            labelVersion.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            lblFooterKofi.Location = new Point(70, ClientSize.Height - 26);
             lblFooterKofi.Size = new Size(44, 16);
+            lblFooterKofi.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             lblFooterKofi.BackColor = Color.Transparent;
             labelUpdate.TextAlign = ContentAlignment.MiddleLeft;
             lblFooterKofi.TextAlign = ContentAlignment.MiddleLeft;
@@ -184,16 +243,12 @@ namespace Steam_Desktop_Authenticator
                 Controls.Add(lblFooterKofi);
             }
 
-            groupAccount.Text = "";
-
             lblAccountName.Font = new Font("Segoe UI Semibold", 11.5F, FontStyle.Bold, GraphicsUnit.Point);
             lblAccountName.ForeColor = Branding.HeadingText;
             lblAccountName.Location = new Point(14, 22);
-            lblAccountName.Size = new Size(220, 22);
             lblAccountName.Text = "";
 
             btnFavoriteAccount.Size = new Size(104, 26);
-            btnFavoriteAccount.Location = new Point(246, 20);
             btnFavoriteAccount.Text = "";
             btnFavoriteAccount.Click += btnFavoriteAccount_Click;
 
@@ -205,29 +260,20 @@ namespace Steam_Desktop_Authenticator
             lblSessionDetails.Font = new Font("Segoe UI", 8.75F, FontStyle.Regular, GraphicsUnit.Point);
             lblSessionDetails.ForeColor = Branding.MutedText;
             lblSessionDetails.Location = new Point(132, 50);
-            lblSessionDetails.Size = new Size(222, 38);
 
             lblAccountHint.Font = new Font("Segoe UI", 8.5F, FontStyle.Regular, GraphicsUnit.Point);
             lblAccountHint.ForeColor = Branding.MutedText;
             lblAccountHint.Location = new Point(14, 92);
-            lblAccountHint.Size = new Size(340, 16);
             lblAccountHint.Visible = false;
 
-            panelAccountActions.Location = new Point(14, 98);
-            panelAccountActions.Size = new Size(334, 28);
             panelAccountActions.BackColor = Color.Transparent;
 
             btnTradeConfirmations.Location = new Point(0, 0);
-            btnTradeConfirmations.Size = new Size(102, 28);
             btnTradeConfirmations.Text = "";
 
-            btnQuickLoginAgain.Size = new Size(102, 28);
-            btnQuickLoginAgain.Location = new Point(116, 0);
             btnQuickLoginAgain.Text = "";
             btnQuickLoginAgain.Click += btnQuickLoginAgain_Click;
 
-            btnQuickTerminate.Size = new Size(102, 28);
-            btnQuickTerminate.Location = new Point(232, 0);
             btnQuickTerminate.Text = "";
             btnQuickTerminate.Click += btnQuickTerminate_Click;
 
@@ -250,14 +296,16 @@ namespace Steam_Desktop_Authenticator
             panelAccountActions.Controls.Add(btnQuickLoginAgain);
             panelAccountActions.Controls.Add(btnQuickTerminate);
 
-            listAccounts.DrawMode = DrawMode.OwnerDrawFixed;
-            listAccounts.ItemHeight = 18;
             listAccounts.DrawItem += listAccounts_DrawItem;
+            listAccounts.MouseMove += listAccounts_MouseMove;
+            listAccounts.MouseLeave += listAccounts_MouseLeave;
+
+            panelWorkspace.Resize += (_, _) => LayoutWorkspace();
+            LayoutWorkspace();
 
             btnSteamLogin.Text = "";
             btnScanQrLogin.Text = "";
             btnManageEncryption.Text = "";
-            btnAccountMonitoring.Text = "";
             btnCopy.Text = "";
             groupBox1.Text = "";
             accountToolStripMenuItem.Text = "";
@@ -267,6 +315,65 @@ namespace Steam_Desktop_Authenticator
       labelUpdate.Text = "";
       lblFooterKofi.Text = "";
       LayoutActionButtons();
+        }
+
+        private void LayoutWorkspace()
+        {
+            if (panelWorkspace.Width <= 0 || panelWorkspace.Height <= 0)
+            {
+                return;
+            }
+
+            int gap = Branding.Density == UiDensity.Compact ? 12 : 16;
+            int accountsWidth = Math.Max(270, Math.Min(330, (int)(panelWorkspace.Width * 0.36f)));
+            panelAccountsColumn.SetBounds(0, 0, accountsWidth, panelWorkspace.Height);
+            panelDetailsColumn.SetBounds(accountsWidth + gap, 0, panelWorkspace.Width - accountsWidth - gap, panelWorkspace.Height);
+
+            int searchHeight = 28;
+            int searchY = panelAccountsColumn.Height - searchHeight;
+            SetWrappedBounds(listAccounts, 0, 30, panelAccountsColumn.Width, Math.Max(120, searchY - 40));
+            label1.SetBounds(4, searchY + 5, 44, 18);
+            SetWrappedBounds(txtAccSearch, 50, searchY, panelAccountsColumn.Width - 50, searchHeight);
+            lblAccountsCount.SetBounds(Math.Max(100, panelAccountsColumn.Width - 82), 0, 78, 24);
+
+            int detailWidth = panelDetailsColumn.Width;
+            groupBox1.SetBounds(0, 0, detailWidth, 158);
+            groupAccount.SetBounds(0, 170, detailWidth, 188);
+
+            int copyWidth = 88;
+            SetWrappedBounds(txtLoginToken, 18, 36, Math.Max(160, detailWidth - copyWidth - 54), 38);
+            btnCopy.SetBounds(detailWidth - copyWidth - 18, 36, copyWidth, 38);
+            pbTimeout.SetBounds(18, 94, Math.Max(160, detailWidth - 36), 14);
+            panelTimeoutTrack.Bounds = pbTimeout.Bounds;
+
+            lblAccountName.SetBounds(18, 34, Math.Max(140, detailWidth - 160), 24);
+            btnFavoriteAccount.SetBounds(detailWidth - 126, 32, 108, 28);
+            lblSessionBadge.SetBounds(18, 68, 122, 24);
+            lblSessionDetails.SetBounds(150, 66, Math.Max(150, detailWidth - 168), 42);
+            lblAccountHint.SetBounds(18, 112, Math.Max(160, detailWidth - 36), 18);
+
+            panelAccountActions.SetBounds(18, 136, Math.Max(220, detailWidth - 36), 34);
+            LayoutAccountActions();
+        }
+
+        private static void SetWrappedBounds(Control control, int x, int y, int width, int height)
+        {
+            Control shell = control.Parent is Panel parent &&
+                (Equals(parent.Tag, "glass-shell") || Equals(parent.Tag, "glass-list-shell"))
+                ? parent
+                : control;
+            shell.SetBounds(x, y, Math.Max(1, width), Math.Max(1, height));
+        }
+
+        private void LayoutAccountActions()
+        {
+            Button[] buttons = { btnTradeConfirmations, btnQuickLoginAgain, btnQuickTerminate };
+            int gap = 10;
+            int width = Math.Max(60, (panelAccountActions.Width - (gap * 2)) / 3);
+            for (int index = 0; index < buttons.Length; index++)
+            {
+                buttons[index].SetBounds(index * (width + gap), 2, width, 30);
+            }
         }
 
         private void ConfigureNavButton(Button button, int x, int width)
@@ -281,6 +388,7 @@ namespace Steam_Desktop_Authenticator
             button.ForeColor = Branding.MutedText;
             button.Font = new Font("Segoe UI Semibold", 8F, FontStyle.Regular, GraphicsUnit.Point);
             button.UseVisualStyleBackColor = false;
+            ModernUi.RoundButton(button, false);
         }
 
         private void ApplyLocalization()
@@ -295,7 +403,12 @@ namespace Steam_Desktop_Authenticator
             menuConnectMobile.Text = Localizer.Choose("Connect SDA++ Mobile", "Подключить SDA++ Mobile");
             menuAutoLoginAllAccounts.Text = Localizer.Choose("Auto login all accounts", "Автовход для всех аккаунтов");
             menuAccountMonitoring.Text = Localizer.Choose("Account monitoring", "Мониторинг аккаунтов");
-            btnNavAccount.Text = accountToolStripMenuItem.Text;
+            btnNavAccount.Text = Localizer.Choose("Auto login all", "Автовход во все");
+            btnNavSettings.Text = Localizer.Choose("Settings", "Настройки");
+            lblDashboardTitle.Text = Localizer.Choose("Steam Guard dashboard", "Панель Steam Guard");
+            lblDashboardSubtitle.Text = Localizer.Choose(
+                "Codes, QR approvals and account health in one place",
+                "Коды, QR-подтверждения и состояние аккаунтов");
             menuLoginAgain.Text = Localizer.Choose("Login again", "Войти заново");
             menuTerminateSessions.Text = Localizer.Choose("Terminate all sessions", "Завершить все сессии");
             menuRemoveAccountFromManifest.Text = Localizer.Choose("Remove from manifest", "Убрать из manifest");
@@ -306,13 +419,13 @@ namespace Steam_Desktop_Authenticator
             trayQuit.Text = Localizer.Choose("Quit", "Выход");
             chkEnableQrHotkeys.Text = Localizer.Choose("QR hotkeys ready for quick approvals", "QR-хоткеи готовы для быстрого подтверждения");
             groupAccount.Tag = Localizer.Choose("Selected account", "Выбранный аккаунт");
+            lblAccountsSection.Text = Localizer.Choose("Accounts", "Аккаунты");
             btnTradeConfirmations.Text = Localizer.Choose("Confirmations", "Подтверждения");
             btnQuickLoginAgain.Text = Localizer.Choose("Login again", "Войти заново");
             btnQuickTerminate.Text = Localizer.Choose("End sessions", "Завершить сессии");
             btnSteamLogin.Text = Localizer.Choose("Add Account", "Добавить аккаунт");
             btnScanQrLogin.Text = Localizer.Choose("Scan QR", "Скан QR");
             btnManageEncryption.Text = Localizer.Choose("Vault", "Шифрование");
-            btnAccountMonitoring.Text = Localizer.Choose("Monitor", "Монитор");
             btnCopy.Text = Localizer.Choose("Copy", "Копировать");
             ModernUi.ApplyGlassCard(groupBox1, Localizer.Choose("Steam Guard code", "Код Steam Guard"));
             ModernUi.ApplyGlassCard(groupAccount, Localizer.Choose("Selected account", "Выбранный аккаунт"));
@@ -335,12 +448,14 @@ namespace Steam_Desktop_Authenticator
             menuStripTray.ShowImageMargin = false;
             menuStripTray.Padding = new Padding(8, 8, 8, 8);
             menuStripTray.Font = new Font("Segoe UI", 9.25F, FontStyle.Regular, GraphicsUnit.Point);
-            lblStatus.BackColor = Branding.AccentDark;
+            lblStatus.BackColor = Color.Transparent;
 
             btnNavFile.Click -= btnNavFile_Click;
             btnNavFile.Click += btnNavFile_Click;
             btnNavAccount.Click -= btnNavAccount_Click;
             btnNavAccount.Click += btnNavAccount_Click;
+            btnNavSettings.Click -= btnNavSettings_Click;
+            btnNavSettings.Click += btnNavSettings_Click;
 
             ModernUi.ApplyGlassCard(groupBox1, Localizer.Choose("Steam Guard code", "Код Steam Guard"));
             ModernUi.ApplyGlassCard(groupAccount, Localizer.Choose("Selected account", "Выбранный аккаунт"));
@@ -360,6 +475,7 @@ namespace Steam_Desktop_Authenticator
       panelTimeoutTrack.BackColor = Color.Transparent;
         panelButtons.BackColor = Color.Transparent;
             ModernUi.WrapListBox(listAccounts);
+            WindowEffects.ApplyDarkControlTheme(listAccounts);
             ModernUi.WrapTextBox(txtAccSearch);
             ModernUi.WrapTextBox(txtLoginToken, 10, 8);
             labelVersion.ForeColor = Branding.MutedText;
@@ -377,7 +493,9 @@ namespace Steam_Desktop_Authenticator
             lblStatus.ForeColor = Branding.MutedText;
             btnNavFile.ForeColor = Branding.MutedText;
             btnNavAccount.ForeColor = Branding.MutedText;
-            btnAccountMonitoring.ForeColor = Branding.MutedText;
+            btnNavSettings.ForeColor = Branding.MutedText;
+            lblDashboardTitle.ForeColor = Branding.HeadingText;
+            lblDashboardSubtitle.ForeColor = Branding.MutedText;
 
             ConfigureTrayMenuTheme();
         }
@@ -406,14 +524,27 @@ namespace Steam_Desktop_Authenticator
         {
             btnNavFile.ForeColor = Branding.HeadingText;
             btnNavAccount.ForeColor = Branding.MutedText;
-            fileToolStripMenuItem.DropDown.Show(btnNavFile, new Point(0, btnNavFile.Height + 6));
+            btnNavSettings.ForeColor = Branding.MutedText;
+            Point menuLocation = panelTopNav.PointToScreen(new Point(btnNavFile.Left, btnNavFile.Bottom + 6));
+            fileToolStripMenuItem.DropDown.Show(menuLocation);
         }
 
         private void btnNavAccount_Click(object sender, EventArgs e)
         {
             btnNavAccount.ForeColor = Branding.HeadingText;
             btnNavFile.ForeColor = Branding.MutedText;
-            accountToolStripMenuItem.DropDown.Show(btnNavAccount, new Point(0, btnNavAccount.Height + 6));
+            btnNavSettings.ForeColor = Branding.MutedText;
+            RunAutoLoginForAllAccounts();
+            btnNavAccount.ForeColor = Branding.MutedText;
+        }
+
+        private void btnNavSettings_Click(object sender, EventArgs e)
+        {
+            btnNavSettings.ForeColor = Branding.HeadingText;
+            btnNavFile.ForeColor = Branding.MutedText;
+            btnNavAccount.ForeColor = Branding.MutedText;
+            menuSettings_Click(sender, e);
+            btnNavSettings.ForeColor = Branding.MutedText;
         }
 
         private void ConfigureTrayMenuTheme()
@@ -547,6 +678,8 @@ namespace Steam_Desktop_Authenticator
             loadAccountsList();
 
             StartUpdateChecks();
+            deviceTrustTimer.Start();
+            _ = CheckDeviceTrustAsync();
             UpdateSelectedAccountCard();
 
             await MaybeAutoLoginAllAccountsOnStartupAsync();
@@ -574,8 +707,12 @@ namespace Steam_Desktop_Authenticator
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            remoteGuardCodeCts?.Cancel();
+            remoteGuardCodeCts?.Dispose();
             updateCheckTimer.Stop();
             updateCheckTimer.Dispose();
+            deviceTrustTimer.Stop();
+            deviceTrustTimer.Dispose();
             UnregisterGlobalHotkeys();
             hotkeyOverlay.Close();
             Application.Exit();
@@ -586,6 +723,7 @@ namespace Steam_Desktop_Authenticator
 
         private void btnSteamLogin_Click(object sender, EventArgs e)
         {
+            if (!RequireLocalVaultManagement()) return;
             var loginForm = new LoginForm();
             loginForm.ShowDialog();
             this.loadAccountsList();
@@ -598,6 +736,11 @@ namespace Steam_Desktop_Authenticator
 
         private async Task OpenAllConfirmationsAsync()
         {
+            if (!DesktopDeviceAccess.Permits("ViewConfirmations"))
+            {
+                ShowDevicePermissionDenied();
+                return;
+            }
             SteamGuardAccount[] accounts = allAccounts ?? Array.Empty<SteamGuardAccount>();
             if (accounts.Length == 0)
             {
@@ -629,6 +772,7 @@ namespace Steam_Desktop_Authenticator
 
         private void btnManageEncryption_Click(object sender, EventArgs e)
         {
+            if (!RequireLocalVaultManagement()) return;
             if (manifest.Encrypted)
             {
                 InputForm currentPassKeyForm = new InputForm("Enter current passkey", true);
@@ -740,6 +884,7 @@ namespace Steam_Desktop_Authenticator
 
         private void menuRemoveAccountFromManifest_Click(object sender, EventArgs e)
         {
+            if (!RequireLocalVaultManagement()) return;
             if (manifest.Encrypted)
             {
                 MessageBox.Show(
@@ -778,6 +923,7 @@ namespace Steam_Desktop_Authenticator
 
         private void menuManageCredentials_Click(object sender, EventArgs e)
         {
+            if (!RequireLocalVaultManagement()) return;
             using CredentialsManagerForm form = new CredentialsManagerForm();
             form.ShowDialog(this);
             manifest = Manifest.GetManifest(true);
@@ -808,6 +954,11 @@ namespace Steam_Desktop_Authenticator
         {
             if (currentAccount == null)
             {
+                return;
+            }
+            if (!DesktopDeviceAccess.Permits("TerminateSessions", currentAccount))
+            {
+                ShowDevicePermissionDenied();
                 return;
             }
 
@@ -884,6 +1035,7 @@ namespace Steam_Desktop_Authenticator
 
         private void menuImportAccount_Click(object sender, EventArgs e)
         {
+            if (!RequireLocalVaultManagement()) return;
             ImportAccountForm currentImport_maFile_Form = new ImportAccountForm();
             currentImport_maFile_Form.ShowDialog();
             loadAccountsList();
@@ -891,17 +1043,58 @@ namespace Steam_Desktop_Authenticator
 
         private void menuSettings_Click(object sender, EventArgs e)
         {
-            new SettingsForm().ShowDialog();
+            using SettingsForm settings = new SettingsForm(
+                OpenCredentialsManager,
+                OpenMobilePairing,
+                OpenAccountMonitoring);
+            settings.ShowDialog(this);
             manifest = Manifest.GetManifest(true);
             Localizer.SetLanguage(manifest.UiLanguage);
+            Branding.ApplyAppearance(manifest);
             loadSettings();
             ApplyLocalization();
+            ApplyTheme();
+            ModernUi.RefreshTheme(this);
+            LayoutWorkspace();
             loadAccountsList();
             RegisterGlobalHotkeys();
         }
 
+        private void OpenCredentialsManager(IWin32Window owner)
+        {
+            if (!RequireLocalVaultManagement()) return;
+            using CredentialsManagerForm form = new CredentialsManagerForm();
+            form.ShowDialog(owner);
+            manifest = Manifest.GetManifest(true);
+            loadAccountsList();
+            ApplyAccountFilter(currentAccount?.AccountName);
+        }
+
+        private void OpenMobilePairing(IWin32Window owner)
+        {
+            using CloudPairingHubForm form = new CloudPairingHubForm();
+            form.ShowDialog(owner);
+            manifest = Manifest.GetManifest(true);
+            loadAccountsList();
+            ApplyAccountFilter(currentAccount?.AccountName);
+        }
+
+        private void RunAutoLoginForAllAccounts()
+        {
+            _ = RunAutoLoginForAllAccountsAsync(
+                true,
+                true,
+                Localizer.Choose("Auto login all accounts", "Автовход для всех аккаунтов"));
+        }
+
+        private void OpenAccountMonitoring(IWin32Window owner)
+        {
+            new AccountMonitoringForm(allAccounts ?? Array.Empty<SteamGuardAccount>()).Show(owner);
+        }
+
         private async void menuDeactivateAuthenticator_Click(object sender, EventArgs e)
         {
+            if (!RequireLocalVaultManagement()) return;
             if (currentAccount == null) return;
 
             if (!await EnsureAccountSessionReadyAsync(currentAccount, "Deactivate Authenticator", true))
@@ -993,10 +1186,7 @@ namespace Steam_Desktop_Authenticator
 
         private void trayCopySteamGuard_Click(object sender, EventArgs e)
         {
-            if (txtLoginToken.Text != "")
-            {
-                Clipboard.SetText(txtLoginToken.Text);
-            }
+            CopyLoginToken();
         }
 
         private void trayAccountList_SelectedIndexChanged(object sender, EventArgs e)
@@ -1018,9 +1208,14 @@ namespace Steam_Desktop_Authenticator
             }
 
             SteamGuardAccount account = filteredAccounts[selectedIndex];
+            if (currentAccount?.Session?.SteamID != account.Session?.SteamID)
+            {
+                ResetRemoteGuardCodeRequest();
+            }
             trayAccountList.Text = account.AccountName;
             currentAccount = account;
             btnTradeConfirmations.Enabled = menuDeactivateAuthenticator.Enabled = menuTerminateSessions.Enabled = true;
+            ApplyDeviceRoleRestrictions();
             loadAccountInfo();
         }
 
@@ -1062,6 +1257,7 @@ namespace Steam_Desktop_Authenticator
         private async void timerTradesPopup_Tick(object sender, EventArgs e)
         {
             if (currentAccount == null || popupFrm.Visible) return;
+            if (!DesktopDeviceAccess.Permits("ViewConfirmations")) return;
             if (!confirmationsSemaphore.Wait(0))
             {
                 return; //Only one thread may access this critical section at once. Mutex is a bad choice here because it'll cause a pileup of threads.
@@ -1113,7 +1309,7 @@ namespace Steam_Desktop_Authenticator
                     popupFrm.Requests = confs.ToArray();
                     popupFrm.Popup();
                 }
-                if (autoAcceptConfirmations.Count > 0)
+                if (autoAcceptConfirmations.Count > 0 && DesktopDeviceAccess.Permits("ApproveConfirmations"))
                 {
                     foreach (var acc in autoAcceptConfirmations.Keys)
                     {
@@ -1134,8 +1330,13 @@ namespace Steam_Desktop_Authenticator
 
         private void CopyLoginToken()
         {
+            if (!DesktopDeviceAccess.Permits("ViewGuardCode", currentAccount))
+            {
+                ShowDevicePermissionDenied();
+                return;
+            }
             string text = txtLoginToken.Text;
-            if (String.IsNullOrEmpty(text))
+            if (String.IsNullOrEmpty(text) || (IsRemoteAccount(currentAccount) && !Regex.IsMatch(text, "^[23456789BCDFGHJKMNPQRTVWXY]{5}$")))
                 return;
             Clipboard.SetText(text);
         }
@@ -1161,8 +1362,15 @@ namespace Steam_Desktop_Authenticator
 
                 return;
             }
+            SteamGuardAccount approvalAccount = currentAccount;
+            if (!DesktopDeviceAccess.Permits("ApproveSteamQr", approvalAccount))
+            {
+                ShowDevicePermissionDenied();
+                return;
+            }
 
-            if (!await EnsureAccountSessionReadyAsync(currentAccount, "Steam QR Login", true))
+            bool remoteAccount = IsRemoteAccount(approvalAccount);
+            if (!remoteAccount && !await EnsureAccountSessionReadyAsync(approvalAccount, "Steam QR Login", true))
             {
                 return;
             }
@@ -1181,8 +1389,16 @@ namespace Steam_Desktop_Authenticator
 
                 lblStatus.Text = Localizer.Choose("Approving QR login...", "Подтверждение QR-входа...");
                 ShowOverlay(Localizer.Choose("Steam QR", "Steam QR"), Localizer.Choose("Approving login...", "Подтверждение входа..."));
-                string result = await qrLoginService.HandleDecodedQrAsync(currentAccount, qrText);
-                manifest.SaveAccount(currentAccount, manifest.Encrypted, passKey);
+                string result;
+                if (remoteAccount)
+                {
+                    result = await RequestRemoteSteamQrApprovalAsync(approvalAccount, qrText);
+                }
+                else
+                {
+                    result = await qrLoginService.HandleDecodedQrAsync(approvalAccount, qrText);
+                    manifest.SaveAccount(approvalAccount, manifest.Encrypted, passKey);
+                }
 
                 lblStatus.Text = "";
                 ShowOverlay(Localizer.Choose("Steam QR", "Steam QR"), result);
@@ -1209,8 +1425,42 @@ namespace Steam_Desktop_Authenticator
             finally
             {
                 qrScanInProgress = false;
-                btnScanQrLogin.Enabled = true;
                 btnScanQrLogin.Text = originalText;
+                ApplyDeviceRoleRestrictions();
+            }
+        }
+
+        private async Task<string> RequestRemoteSteamQrApprovalAsync(SteamGuardAccount account, string qrText)
+        {
+            try
+            {
+                DesktopRegistrySettings settings = DesktopDeviceAccess.Current;
+                string steamId = account.Session.SteamID.ToString();
+                using CancellationTokenSource timeout = new CancellationTokenSource(TimeSpan.FromSeconds(100));
+                DesktopDeviceRegistryClient client = new DesktopDeviceRegistryClient();
+                string actionId = await client.RequestSteamQrApprovalAsync(settings, steamId, qrText, timeout.Token);
+
+                while (true)
+                {
+                    SteamQrRemoteResponse response = await client.ConsumeSteamQrApprovalResultAsync(settings, actionId, timeout.Token);
+                    if (response != null)
+                    {
+                        if (!response.Success)
+                        {
+                            throw new InvalidOperationException(RemoteActionErrorText(response.Error));
+                        }
+
+                        return Localizer.Choose(
+                            "QR login approved by the Admin device.",
+                            "QR-вход подтвержден Admin-устройством.");
+                    }
+
+                    await Task.Delay(1250, timeout.Token);
+                }
+            }
+            catch (Exception ex) when (ex is OperationCanceledException || ex is HttpRequestException || ex is DesktopRegistryException)
+            {
+                throw new InvalidOperationException(RemoteActionFailureText(RemoteActionFailure.Classify(ex)));
             }
         }
 
@@ -1542,13 +1792,458 @@ namespace Steam_Desktop_Authenticator
         {
             if (currentAccount != null && steamTime != 0)
             {
-                popupFrm.Account = currentAccount;
-                txtLoginToken.Text = currentAccount.GenerateSteamGuardCodeForTime(steamTime);
-                int elapsed = (int)(steamTime - (currentSteamChunk * 30L));
-                UpdateTimeoutBar(30 - elapsed, 30);
+                if (IsRemoteAccount(currentAccount))
+                {
+                    UpdateRemoteGuardCodeDisplay();
+                }
+                else
+                {
+                    popupFrm.Account = currentAccount;
+                    txtLoginToken.Text = DesktopDeviceAccess.Permits("ViewGuardCode", currentAccount)
+                        ? currentAccount.GenerateSteamGuardCodeForTime(steamTime)
+                        : "LOCKED";
+                    int elapsed = (int)(steamTime - (currentSteamChunk * 30L));
+                    UpdateTimeoutBar(30 - elapsed, 30);
+                }
             }
 
             UpdateSelectedAccountCard();
+        }
+
+        private bool IsRemoteAccount(SteamGuardAccount account)
+        {
+            return account?.Session != null && remoteAccountSteamIds.Contains(account.Session.SteamID);
+        }
+
+        private void UpdateRemoteGuardCodeDisplay()
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            if (!string.IsNullOrEmpty(remoteGuardCode) && remoteGuardCodeValidUntil > now)
+            {
+                txtLoginToken.Text = remoteGuardCode;
+                int secondsRemaining = Math.Max(0, (int)Math.Ceiling((remoteGuardCodeValidUntil - now) / 1000d));
+                UpdateTimeoutBar(secondsRemaining, 30);
+                return;
+            }
+
+            remoteGuardCode = string.Empty;
+            remoteGuardCodeValidUntil = 0;
+            if (!remoteGuardCodeInProgress && DateTime.UtcNow < remoteGuardCodeRetryAt)
+            {
+                UpdateTimeoutBar(0, 30);
+                return;
+            }
+            txtLoginToken.Text = remoteGuardCodeInProgress
+                ? Localizer.Choose("WAIT", "ЖДИТЕ")
+                : "-----";
+            UpdateTimeoutBar(0, 30);
+            if (!remoteGuardCodeInProgress && DateTime.UtcNow >= remoteGuardCodeRetryAt &&
+                DesktopDeviceAccess.Permits("ViewGuardCode", currentAccount))
+            {
+                _ = RefreshRemoteGuardCodeAsync(currentAccount);
+            }
+        }
+
+        private async Task RefreshRemoteGuardCodeAsync(SteamGuardAccount account)
+        {
+            if (remoteGuardCodeInProgress || !IsRemoteAccount(account)) return;
+            remoteGuardCodeInProgress = true;
+            remoteGuardCodeRetryAt = DateTime.UtcNow.AddSeconds(15);
+            remoteGuardCodeCts?.Cancel();
+            remoteGuardCodeCts?.Dispose();
+            remoteGuardCodeCts = new CancellationTokenSource(TimeSpan.FromSeconds(100));
+            CancellationTokenSource requestCts = remoteGuardCodeCts;
+            CancellationToken token = requestCts.Token;
+            ulong requestedSteamId = account.Session.SteamID;
+
+            try
+            {
+                DesktopRegistrySettings settings = DesktopDeviceAccess.Current;
+                DesktopDeviceRegistryClient client = new DesktopDeviceRegistryClient();
+                string actionId = await client.RequestGuardCodeAsync(settings, requestedSteamId.ToString(), token);
+                while (true)
+                {
+                    GuardCodeRemoteResponse response = await client.ConsumeGuardCodeResultAsync(settings, actionId, token);
+                    if (response != null)
+                    {
+                        if (!response.Success)
+                            throw new InvalidOperationException(RemoteActionErrorText(response.Error));
+                        if (currentAccount?.Session?.SteamID != requestedSteamId) return;
+
+                        remoteGuardCode = response.Code;
+                        remoteGuardCodeValidUntil = response.ValidUntil ?? 0;
+                        remoteGuardCodeRetryAt = DateTime.MinValue;
+                        UpdateRemoteGuardCodeDisplay();
+                        return;
+                    }
+
+                    await Task.Delay(1250, token);
+                }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                if (currentAccount?.Session?.SteamID == requestedSteamId)
+                {
+                    RemoteActionFailureKind failure = RemoteActionFailure.Classify(ex);
+                    bool knownFailure = failure != RemoteActionFailureKind.Unknown;
+                    remoteGuardCodeRetryAt = !knownFailure || RemoteActionFailure.CanRetryAutomatically(failure)
+                        ? DateTime.UtcNow.AddSeconds(30)
+                        : DateTime.MaxValue;
+                    txtLoginToken.Text = failure switch
+                    {
+                        RemoteActionFailureKind.RelayUnavailable => "OFFLINE",
+                        RemoteActionFailureKind.AdminTimeout => "TIMEOUT",
+                        RemoteActionFailureKind.AuthorizationExpired => "LOCKED",
+                        RemoteActionFailureKind.DeviceLocked => "LOCKED",
+                        RemoteActionFailureKind.RequestExpired => "EXPIRED",
+                        _ => "ERROR"
+                    };
+                    lblStatus.Text = knownFailure
+                        ? RemoteActionFailureText(failure)
+                        : GetInnermostExceptionMessage(ex);
+                }
+            }
+            finally
+            {
+                if (ReferenceEquals(remoteGuardCodeCts, requestCts))
+                {
+                    remoteGuardCodeInProgress = false;
+                    if (currentAccount?.Session?.SteamID == requestedSteamId)
+                    {
+                        UpdateRemoteGuardCodeDisplay();
+                    }
+                }
+            }
+        }
+
+        private void ResetRemoteGuardCodeRequest()
+        {
+            remoteGuardCodeCts?.Cancel();
+            remoteGuardCodeCts?.Dispose();
+            remoteGuardCodeCts = null;
+            remoteGuardCodeInProgress = false;
+            remoteGuardCode = string.Empty;
+            remoteGuardCodeValidUntil = 0;
+            remoteGuardCodeRetryAt = DateTime.MinValue;
+        }
+
+        private static string RemoteActionErrorText(string error)
+        {
+            return error switch
+            {
+                "AccountNotGranted" => Localizer.Choose("This account is no longer granted to this device.", "Этот аккаунт больше не выдан этому устройству."),
+                "AccountUnavailable" => Localizer.Choose("The Admin device cannot access this account.", "Admin-устройство не может получить доступ к этому аккаунту."),
+                "GenerationFailed" => Localizer.Choose("The Admin device could not generate a Guard code.", "Admin-устройство не смогло создать Guard-код."),
+                "ApprovalFailed" => Localizer.Choose("The Admin device could not approve this QR login.", "Admin-устройство не смогло подтвердить этот QR-вход."),
+                _ => Localizer.Choose("The Admin device rejected the remote request.", "Admin-устройство отклонило удалённый запрос.")
+            };
+        }
+
+        private static string RemoteActionFailureText(RemoteActionFailureKind failure)
+        {
+            return failure switch
+            {
+                RemoteActionFailureKind.RelayUnavailable => Localizer.Choose(
+                    "The secure relay is unreachable. Check the Internet connection; SDA++ will retry automatically.",
+                    "Защищённый relay недоступен. Проверьте интернет; SDA++ повторит запрос автоматически."),
+                RemoteActionFailureKind.AdminTimeout => Localizer.Choose(
+                    "No Admin device responded in time. Bring an Admin device online and try again.",
+                    "Admin-устройство не ответило вовремя. Подключите его к интернету и повторите попытку."),
+                RemoteActionFailureKind.AuthorizationExpired => Localizer.Choose(
+                    "This device authorization was rejected or revoked. Pair the device again.",
+                    "Авторизация этого устройства отклонена или отозвана. Выполните сопряжение заново."),
+                RemoteActionFailureKind.DeviceLocked => Localizer.Choose(
+                    "This device is locked by an Admin and cannot request account actions.",
+                    "Это устройство заблокировано Admin-устройством и не может запрашивать действия аккаунта."),
+                RemoteActionFailureKind.RequestExpired => Localizer.Choose(
+                    "The remote request expired before an Admin responded. Try again.",
+                    "Удалённый запрос истёк до ответа Admin-устройства. Повторите попытку."),
+                RemoteActionFailureKind.Rejected => Localizer.Choose(
+                    "The secure relay rejected the request.",
+                    "Защищённый relay отклонил запрос."),
+                _ => Localizer.Choose("The remote request failed.", "Удалённый запрос не выполнен.")
+            };
+        }
+
+        private void ShowDevicePermissionDenied()
+        {
+            MessageBox.Show(
+                Localizer.Choose(
+                    "This Trusted device was not granted permission for that action.",
+                    "Этому доверенному устройству не выдано разрешение на это действие."),
+                Localizer.Choose("Device permission", "Разрешение устройства"),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+
+        private bool RequireLocalVaultManagement()
+        {
+            if (DesktopDeviceAccess.CanManageLocalVault) return true;
+            ShowDevicePermissionDenied();
+            return false;
+        }
+
+        private void ApplyDeviceRoleRestrictions()
+        {
+            bool managesVault = DesktopDeviceAccess.CanManageLocalVault;
+            btnSteamLogin.Enabled = managesVault;
+            btnManageEncryption.Enabled = managesVault && manifest != null && manifest.Entries.Count > 0;
+            menuImportAccount.Enabled = managesVault;
+            menuManageCredentials.Enabled = managesVault;
+            bool localAccount = currentAccount != null && !IsRemoteAccount(currentAccount);
+            menuRemoveAccountFromManifest.Enabled = managesVault && localAccount;
+            menuDeactivateAuthenticator.Enabled = managesVault && localAccount;
+
+            btnTradeConfirmations.Enabled = localAccount && DesktopDeviceAccess.Permits("ViewConfirmations", currentAccount);
+            menuTerminateSessions.Enabled = localAccount && DesktopDeviceAccess.Permits("TerminateSessions", currentAccount);
+            btnQuickTerminate.Enabled = menuTerminateSessions.Enabled;
+            btnQuickLoginAgain.Enabled = localAccount;
+            btnFavoriteAccount.Enabled = localAccount;
+            btnCopy.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("ViewGuardCode", currentAccount);
+            btnScanQrLogin.Enabled = currentAccount != null && DesktopDeviceAccess.Permits("ApproveSteamQr", currentAccount);
+        }
+
+        private async Task CheckDeviceTrustAsync()
+        {
+            if (deviceTrustCheckInProgress) return;
+            DesktopRegistrySettings registry = DesktopRegistrySettingsStore.Load();
+            if (string.IsNullOrWhiteSpace(registry.VaultId)) return;
+            deviceTrustCheckInProgress = true;
+            try
+            {
+                DesktopDeviceRegistryClient client = new DesktopDeviceRegistryClient();
+                try
+                {
+                    await client.HeartbeatAsync(registry, CancellationToken.None);
+                    registry.LastSuccessfulHeartbeatAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    DesktopRegistrySettingsStore.Save(registry);
+                }
+                catch (Exception ex)
+                {
+                    long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    bool offlineExpired = registry.OfflineWipeAfterHours != null && registry.LastSuccessfulHeartbeatAt != null &&
+                        now - registry.LastSuccessfulHeartbeatAt >= TimeSpan.FromHours(registry.OfflineWipeAfterHours.Value).TotalMilliseconds;
+                    if (ex.Message.Contains("Device is not active", StringComparison.OrdinalIgnoreCase) || offlineExpired)
+                        WipeGrantedDeviceData();
+                    return;
+                }
+
+                if (registry.Role == "Admin")
+                {
+                    await ProcessAdminRemoteActionsAsync(client, registry);
+                    IReadOnlyList<DesktopRegistryAuditEvent> events = await client.ListAuditAsync(registry, CancellationToken.None);
+                    DesktopRegistryAuditEvent newest = events.FirstOrDefault();
+                    if (newest != null)
+                    {
+                        List<DesktopRegistryAuditEvent> newEvents = string.IsNullOrWhiteSpace(registry.LastAuditEventId)
+                            ? new List<DesktopRegistryAuditEvent>()
+                            : events.TakeWhile(value => value.EventId != registry.LastAuditEventId).ToList();
+                        registry.LastAuditEventId = newest.EventId;
+                        DesktopRegistrySettingsStore.Save(registry);
+                        List<DesktopRegistryAuditEvent> significant = newEvents
+                            .Where(value => value.Action != "Heartbeat")
+                            .ToList();
+                        if (significant.Count > 0) ShowSecurityActivityNotification(significant);
+                    }
+                    return;
+                }
+                IReadOnlyList<DesktopRegistryCommand> commands = await client.PendingCommandsAsync(registry, CancellationToken.None);
+                foreach (DesktopRegistryCommand command in commands.OrderBy(value => value.CreatedAt))
+                {
+                    if (command.Type == "Lock")
+                    {
+                        bool locked = manifest.Encrypted;
+                        if (locked)
+                        {
+                            passKey = null;
+                            loadAccountsList();
+                        }
+                        await client.AcknowledgeCommandAsync(registry, command.CommandId, locked, CancellationToken.None);
+                    }
+                    else if (command.Type == "TerminateSteamSessions")
+                    {
+                        bool succeeded = true;
+                        SteamGuardAccount[] targets = allAccounts ?? Array.Empty<SteamGuardAccount>();
+                        foreach (SteamGuardAccount account in targets)
+                        {
+                            try { await qrLoginService.TerminateAllSessionsAsync(account); }
+                            catch { succeeded = false; }
+                        }
+                        await client.AcknowledgeCommandAsync(registry, command.CommandId, targets.Length > 0 && succeeded, CancellationToken.None);
+                    }
+                    else if (command.Type == "WipeLocalData")
+                    {
+                        RemoveGrantedAccountData(registry);
+                        await client.AcknowledgeCommandAsync(registry, command.CommandId, true, CancellationToken.None);
+                        CompleteGrantedDeviceWipe();
+                        return;
+                    }
+                }
+            }
+            catch
+            {
+                // Background trust checks must not interrupt normal UI work.
+            }
+            finally { deviceTrustCheckInProgress = false; }
+        }
+
+        private async Task ProcessAdminRemoteActionsAsync(
+            DesktopDeviceRegistryClient client,
+            DesktopRegistrySettings registry)
+        {
+            IReadOnlyList<DesktopRemoteActionRequest> actions =
+                await client.PendingRemoteActionsAsync(registry, CancellationToken.None);
+            foreach (DesktopRemoteActionRequest action in actions.Where(value =>
+                value.Kind == "ViewGuardCode" || value.Kind == "ApproveSteamQr"))
+            {
+                byte[] responsePayload = action.Kind == "ViewGuardCode"
+                    ? GuardCodeRemoteActionCodec.Response(await BuildGuardCodeRemoteResponseAsync(action))
+                    : SteamQrRemoteActionCodec.Response(await BuildSteamQrRemoteResponseAsync(action));
+                try
+                {
+                    await client.RespondRemoteActionAsync(
+                        registry,
+                        action,
+                        responsePayload,
+                        CancellationToken.None);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Another active Admin may have answered this one-time request first.
+                }
+            }
+        }
+
+        private async Task<GuardCodeRemoteResponse> BuildGuardCodeRemoteResponseAsync(
+            DesktopRemoteActionRequest action)
+        {
+            string steamId;
+            try { steamId = GuardCodeRemoteActionCodec.ParseRequest(action.Payload); }
+            catch { return FailedGuardCodeResponse(null, "InvalidRequest"); }
+            if (!action.Authorization.Capabilities.Contains("ViewGuardCode") ||
+                !action.Authorization.AccountSteamIds.Contains(steamId))
+                return FailedGuardCodeResponse(steamId, "AccountNotGranted");
+            SteamGuardAccount account = (allAccounts ?? Array.Empty<SteamGuardAccount>())
+                .FirstOrDefault(value => value?.Session?.SteamID.ToString() == steamId);
+            if (account == null) return FailedGuardCodeResponse(steamId, "AccountUnavailable");
+            try
+            {
+                long alignedTime = await TimeAligner.GetSteamTimeAsync();
+                return new GuardCodeRemoteResponse
+                {
+                    Success = true,
+                    SteamId = steamId,
+                    Code = account.GenerateSteamGuardCodeForTime(alignedTime),
+                    GeneratedAt = alignedTime * 1000L,
+                    ValidUntil = ((alignedTime / 30L) + 1L) * 30_000L
+                };
+            }
+            catch
+            {
+                return FailedGuardCodeResponse(steamId, "GenerationFailed");
+            }
+        }
+
+        private static GuardCodeRemoteResponse FailedGuardCodeResponse(string steamId, string error) =>
+            new GuardCodeRemoteResponse
+            {
+                Success = false,
+                SteamId = steamId,
+                Error = error
+            };
+
+        private async Task<SteamQrRemoteResponse> BuildSteamQrRemoteResponseAsync(
+            DesktopRemoteActionRequest action)
+        {
+            SteamQrRemoteRequest request;
+            try { request = SteamQrRemoteActionCodec.ParseRequest(action.Payload); }
+            catch { return FailedSteamQrResponse(null, "InvalidRequest"); }
+            if (!action.Authorization.Capabilities.Contains("ApproveSteamQr") ||
+                !action.Authorization.AccountSteamIds.Contains(request.SteamId))
+                return FailedSteamQrResponse(request.SteamId, "AccountNotGranted");
+            SteamGuardAccount account = (allAccounts ?? Array.Empty<SteamGuardAccount>())
+                .FirstOrDefault(value => value?.Session?.SteamID.ToString() == request.SteamId);
+            if (account == null) return FailedSteamQrResponse(request.SteamId, "AccountUnavailable");
+            try
+            {
+                await qrLoginService.HandleDecodedQrAsync(account, request.QrPayload);
+                return new SteamQrRemoteResponse
+                {
+                    Success = true,
+                    SteamId = request.SteamId
+                };
+            }
+            catch
+            {
+                return FailedSteamQrResponse(request.SteamId, "ApprovalFailed");
+            }
+        }
+
+        private static SteamQrRemoteResponse FailedSteamQrResponse(string steamId, string error) =>
+            new SteamQrRemoteResponse
+            {
+                Success = false,
+                SteamId = steamId,
+                Error = error
+            };
+
+        private void WipeGrantedDeviceData()
+        {
+            DesktopRegistrySettings registry = DesktopRegistrySettingsStore.Load();
+            RemoveGrantedAccountData(registry);
+            CompleteGrantedDeviceWipe();
+        }
+
+        private void RemoveGrantedAccountData(DesktopRegistrySettings registry)
+        {
+            HashSet<ulong> grantedIds = registry.GrantedAccountSteamIds
+                .Select(value => ulong.TryParse(value, out ulong id) ? id : 0)
+                .Where(value => value != 0)
+                .ToHashSet();
+            foreach (Manifest.ManifestEntry entry in manifest.Entries.Where(value => grantedIds.Contains(value.SteamID)).ToArray())
+            {
+                manifest.RemoveAccount(new SteamGuardAccount { Session = new SessionData { SteamID = entry.SteamID } }, true);
+            }
+        }
+
+        private void CompleteGrantedDeviceWipe()
+        {
+            DesktopRegistrySettingsStore.Clear();
+            loadAccountsList();
+            ShowOverlay(
+                Localizer.Choose("Trusted device", "Доверенное устройство"),
+                Localizer.Choose("Granted local account data was removed.", "Выданные локальные данные аккаунтов удалены."));
+        }
+
+        private void ShowSecurityActivityNotification(IReadOnlyList<DesktopRegistryAuditEvent> events)
+        {
+            string latest = SecurityActivityLabel(events[0].Action);
+            trayIcon.BalloonTipTitle = Localizer.Choose("SDA++ security activity", "Событие безопасности SDA++");
+            trayIcon.BalloonTipText = events.Count == 1 ? latest : $"{latest} (+{events.Count - 1})";
+            trayIcon.BalloonTipIcon = ToolTipIcon.Warning;
+            trayIcon.ShowBalloonTip(6000);
+        }
+
+        private static string SecurityActivityLabel(string action)
+        {
+            if (!Localizer.IsRussian)
+                return Regex.Replace(action ?? string.Empty, "([a-z])([A-Z])", "$1 $2");
+
+            return action switch
+            {
+                "DeviceEnrolled" => "Добавлено новое устройство",
+                "DeviceRevoked" => "Устройство отозвано",
+                "InvitationCreated" => "Создано приглашение устройства",
+                "EmergencyLockdown" => "Выполнена аварийная блокировка",
+                "CommandLockIssued" => "Отправлена команда блокировки",
+                "CommandWipeLocalDataIssued" => "Отправлена команда очистки",
+                "CommandTerminateSteamSessionsIssued" => "Отправлена команда завершения Steam-сессий",
+                "CommandCompleted" => "Удалённая команда выполнена",
+                _ => Regex.Replace(action ?? string.Empty, "([a-z])([A-Z])", "$1 $2"),
+            };
         }
 
         /// <summary>
@@ -1557,6 +2252,7 @@ namespace Steam_Desktop_Authenticator
         private void loadAccountsList()
         {
             string preferredAccountName = currentAccount?.AccountName;
+            ResetRemoteGuardCodeRequest();
             currentAccount = null;
 
             listAccounts.Items.Clear();
@@ -1565,7 +2261,10 @@ namespace Steam_Desktop_Authenticator
             trayAccountList.Items.Clear();
             trayAccountList.SelectedIndex = -1;
 
-            allAccounts = manifest.GetAllAccounts(passKey);
+            allAccounts = DesktopDeviceAccess.BuildVisibleAccounts(
+                manifest.GetAllAccounts(passKey),
+                remoteAccountSteamIds,
+                steamId => Localizer.Choose($"Remote account {steamId}", $"Удалённый аккаунт {steamId}"));
 
             if (allAccounts.Length > 0)
             {
@@ -1577,6 +2276,7 @@ namespace Steam_Desktop_Authenticator
             }
 
             menuDeactivateAuthenticator.Enabled = btnTradeConfirmations.Enabled = menuTerminateSessions.Enabled = allAccounts.Length > 0;
+            ApplyDeviceRoleRestrictions();
         }
 
         private void listAccounts_KeyDown(object sender, KeyEventArgs e)
@@ -1644,7 +2344,7 @@ namespace Steam_Desktop_Authenticator
         {
             filteredAccounts = allAccounts
                 .Where(account => IsFilter(account.AccountName))
-                .OrderByDescending(account => manifest.IsFavorite(account.Session.SteamID))
+                .OrderByDescending(account => manifest.IsFavorite(account.Session?.SteamID ?? 0))
                 .ThenBy(account => account.AccountName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -1656,6 +2356,8 @@ namespace Steam_Desktop_Authenticator
                 listAccounts.Items.Add(GetDisplayName(account));
                 trayAccountList.Items.Add(account.AccountName);
             }
+            lblAccountsCount.Text = filteredAccounts.Count.ToString();
+            hoveredAccountIndex = -1;
 
             string targetName = preferredAccountName ?? currentAccount?.AccountName;
             int selectedIndex = filteredAccounts.FindIndex(account => StringComparer.OrdinalIgnoreCase.Equals(account.AccountName, targetName));
@@ -1680,6 +2382,7 @@ namespace Steam_Desktop_Authenticator
             bool hasSelectedAccount = listAccounts.SelectedIndex >= 0;
             btnTradeConfirmations.Enabled = menuDeactivateAuthenticator.Enabled = menuTerminateSessions.Enabled = hasSelectedAccount;
             btnQuickLoginAgain.Enabled = btnQuickTerminate.Enabled = btnFavoriteAccount.Enabled = hasSelectedAccount;
+            ApplyDeviceRoleRestrictions();
             UpdateSelectedAccountCard();
         }
 
@@ -1736,7 +2439,7 @@ namespace Steam_Desktop_Authenticator
 
         private void ToggleCurrentAccountFavorite()
         {
-            if (currentAccount == null)
+            if (currentAccount == null || IsRemoteAccount(currentAccount))
             {
                 return;
             }
@@ -1767,6 +2470,23 @@ namespace Steam_Desktop_Authenticator
             }
 
             lblAccountName.Text = currentAccount.AccountName;
+            if (IsRemoteAccount(currentAccount))
+            {
+                lblSessionBadge.Visible = true;
+                lblSessionBadge.Text = Localizer.Choose("Remote", "Удалённый");
+                lblSessionBadge.BackColor = Branding.AccentSoft;
+                lblSessionBadge.ForeColor = Branding.AccentDark;
+                lblSessionDetails.Text = Localizer.Choose(
+                    "No maFile is stored here. Guard codes and QR approvals are requested securely from an Admin device.",
+                    "На этом устройстве нет maFile. Guard-коды и QR-подтверждения безопасно запрашиваются у Admin-устройства.");
+                btnFavoriteAccount.Text = Localizer.Choose("Remote", "Удалённый");
+                btnQuickLoginAgain.Enabled = false;
+                btnQuickTerminate.Enabled = false;
+                btnFavoriteAccount.Enabled = false;
+                btnTradeConfirmations.Enabled = false;
+                return;
+            }
+
             btnFavoriteAccount.Text = manifest.IsFavorite(currentAccount.Session.SteamID) ? "Pinned" : "Pin";
             bool hasStoredCredentials = storedCredentialLoginService.HasStoredCredentials(currentAccount.Session?.SteamID ?? 0, currentAccount.AccountName);
             bool isExpired = currentAccount.Session == null || currentAccount.Session.IsAccessTokenExpired() || currentAccount.Session.IsRefreshTokenExpired();
@@ -1825,6 +2545,26 @@ namespace Steam_Desktop_Authenticator
         {
             timeoutBarMax = maxValue <= 0 ? 1 : maxValue;
             timeoutBarValue = Math.Max(0, Math.Min(value, timeoutBarMax));
+            if (timeoutBarDisplayedValue <= 0F && timeoutBarValue > 0)
+            {
+                timeoutBarDisplayedValue = timeoutBarValue;
+            }
+            timeoutAnimationTimer.Start();
+            panelTimeoutTrack.Invalidate();
+        }
+
+        private void timeoutAnimationTimer_Tick(object sender, EventArgs e)
+        {
+            float difference = timeoutBarValue - timeoutBarDisplayedValue;
+            if (Math.Abs(difference) < 0.015F)
+            {
+                timeoutBarDisplayedValue = timeoutBarValue;
+                timeoutAnimationTimer.Stop();
+            }
+            else
+            {
+                timeoutBarDisplayedValue += difference * 0.18F;
+            }
             panelTimeoutTrack.Invalidate();
         }
 
@@ -1866,7 +2606,7 @@ namespace Steam_Desktop_Authenticator
 
         private Rectangle GetTimeoutFillRectangle()
         {
-            if (timeoutBarValue <= 0 || timeoutBarMax <= 0)
+            if (timeoutBarDisplayedValue <= 0F || timeoutBarMax <= 0)
             {
                 return Rectangle.Empty;
             }
@@ -1874,7 +2614,7 @@ namespace Steam_Desktop_Authenticator
             const int inset = 1;
             int width = Math.Max(0, panelTimeoutTrack.Width - (inset * 2));
             int height = Math.Max(0, panelTimeoutTrack.Height - (inset * 2));
-            int fillWidth = width * timeoutBarValue / timeoutBarMax;
+            int fillWidth = (int)Math.Round(width * timeoutBarDisplayedValue / timeoutBarMax);
 
             return new Rectangle(inset, inset, fillWidth, height);
         }
@@ -1894,7 +2634,6 @@ namespace Steam_Desktop_Authenticator
 
         private void listAccounts_DrawItem(object sender, DrawItemEventArgs e)
         {
-            e.DrawBackground();
             if (e.Index < 0 || e.Index >= filteredAccounts.Count)
             {
                 return;
@@ -1902,35 +2641,125 @@ namespace Steam_Desktop_Authenticator
 
             SteamGuardAccount account = filteredAccounts[e.Index];
             bool selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-            bool accessExpired = account.Session != null && account.Session.IsAccessTokenExpired() && !account.Session.IsRefreshTokenExpired();
-            Color background = selected ? Branding.Accent : accessExpired ? Color.FromArgb(84, 42, 48) : Branding.AccentDark;
-            Color foreground = selected ? Color.White : Branding.HeadingText;
-            using (SolidBrush backgroundBrush = new SolidBrush(background))
-            using (SolidBrush foregroundBrush = new SolidBrush(foreground))
-            using (SolidBrush starBrush = new SolidBrush(selected ? Color.FromArgb(255, 241, 166) : Color.FromArgb(234, 186, 84)))
+            bool hovered = e.Index == hoveredAccountIndex;
+            bool remote = IsRemoteAccount(account);
+            bool refreshExpired = account.Session == null || account.Session.IsRefreshTokenExpired();
+            bool accessExpired = !refreshExpired && account.Session.IsAccessTokenExpired();
+            bool favorite = account.Session != null && manifest.IsFavorite(account.Session.SteamID);
+
+            Color statusColor;
+            string statusText;
+            if (remote)
             {
-                e.Graphics.FillRectangle(backgroundBrush, e.Bounds);
-
-                int x = e.Bounds.X + 8;
-                if (manifest.IsFavorite(account.Session.SteamID))
-                {
-                    e.Graphics.DrawString("★", new Font("Segoe UI Symbol", 9F, FontStyle.Regular, GraphicsUnit.Point), starBrush, x, e.Bounds.Y + 1);
-                    x += 16;
-                }
-
-                e.Graphics.DrawString(account.AccountName, e.Font, foregroundBrush, x, e.Bounds.Y + 2);
-
-                if (account.Session != null && account.Session.IsRefreshTokenExpired())
-                {
-                    using (Pen expiredPen = new Pen(Branding.Danger, 1))
-                    {
-                        Rectangle borderBounds = new Rectangle(e.Bounds.X, e.Bounds.Y, e.Bounds.Width - 1, e.Bounds.Height - 1);
-                        e.Graphics.DrawRectangle(expiredPen, borderBounds);
-                    }
-                }
+                statusColor = Branding.Accent;
+                statusText = Localizer.Choose("Remote access", "Удалённый доступ");
+            }
+            else if (refreshExpired)
+            {
+                statusColor = Branding.Danger;
+                statusText = Localizer.Choose("Login required", "Требуется вход");
+            }
+            else if (accessExpired)
+            {
+                statusColor = Branding.Warning;
+                statusText = Localizer.Choose("Access expired", "Доступ истёк");
+            }
+            else
+            {
+                statusColor = Branding.Success;
+                statusText = Localizer.Choose("Session live", "Сессия активна");
             }
 
-            e.DrawFocusRectangle();
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using (SolidBrush canvas = new SolidBrush(Branding.AccentDark))
+            {
+                e.Graphics.FillRectangle(canvas, e.Bounds);
+            }
+
+            Rectangle card = new Rectangle(e.Bounds.X + 3, e.Bounds.Y + 3, Math.Max(1, e.Bounds.Width - 7), Math.Max(1, e.Bounds.Height - 6));
+            Color cardFill = selected
+                ? Branding.AccentSoft
+                : hovered ? Color.FromArgb(205, Branding.CardBackground) : Color.FromArgb(168, Branding.CardBackground);
+            Color borderColor = selected ? Branding.Accent : refreshExpired ? Branding.Danger : Color.FromArgb(105, Branding.Outline);
+            using (System.Drawing.Drawing2D.GraphicsPath cardPath = CreateRoundedPath(card, 10))
+            using (SolidBrush cardBrush = new SolidBrush(cardFill))
+            using (Pen cardBorder = new Pen(borderColor, selected ? 1.4F : 1F))
+            {
+                e.Graphics.FillPath(cardBrush, cardPath);
+                e.Graphics.DrawPath(cardBorder, cardPath);
+            }
+
+            int textX = card.X + 13;
+            if (favorite)
+            {
+                using Font favoriteFont = new Font("Segoe UI Symbol", 9F, FontStyle.Regular, GraphicsUnit.Point);
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    "★",
+                    favoriteFont,
+                    new Rectangle(textX, card.Y + 7, 18, 18),
+                    Color.FromArgb(241, 196, 91),
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                textX += 20;
+            }
+
+            using Font accountFont = new Font("Segoe UI Semibold", 9.25F, FontStyle.Bold, GraphicsUnit.Point);
+            using Font statusFont = new Font("Segoe UI Variable Text", 7.75F, FontStyle.Regular, GraphicsUnit.Point);
+            TextRenderer.DrawText(
+                e.Graphics,
+                account.AccountName,
+                accountFont,
+                new Rectangle(textX, card.Y + 6, Math.Max(40, card.Width - (textX - card.X) - 34), 20),
+                Branding.HeadingText,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+            TextRenderer.DrawText(
+                e.Graphics,
+                statusText,
+                statusFont,
+                new Rectangle(textX, card.Y + 26, Math.Max(40, card.Width - (textX - card.X) - 34), 16),
+                Branding.MutedText,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+
+            Rectangle statusDot = new Rectangle(card.Right - 20, card.Y + ((card.Height - 8) / 2), 8, 8);
+            using (SolidBrush statusBrush = new SolidBrush(statusColor))
+            {
+                e.Graphics.FillEllipse(statusBrush, statusDot);
+            }
+            if (selected)
+            {
+                using Pen glow = new Pen(Color.FromArgb(80, statusColor), 3F);
+                e.Graphics.DrawEllipse(glow, Rectangle.Inflate(statusDot, 2, 2));
+            }
+        }
+
+        private void listAccounts_MouseMove(object sender, MouseEventArgs e)
+        {
+            int nextIndex = listAccounts.IndexFromPoint(e.Location);
+            if (nextIndex == hoveredAccountIndex)
+            {
+                return;
+            }
+
+            int previousIndex = hoveredAccountIndex;
+            hoveredAccountIndex = nextIndex;
+            if (previousIndex >= 0)
+            {
+                listAccounts.Invalidate(listAccounts.GetItemRectangle(previousIndex));
+            }
+            if (hoveredAccountIndex >= 0)
+            {
+                listAccounts.Invalidate(listAccounts.GetItemRectangle(hoveredAccountIndex));
+            }
+        }
+
+        private void listAccounts_MouseLeave(object sender, EventArgs e)
+        {
+            int previousIndex = hoveredAccountIndex;
+            hoveredAccountIndex = -1;
+            if (previousIndex >= 0)
+            {
+                listAccounts.Invalidate(listAccounts.GetItemRectangle(previousIndex));
+            }
         }
 
         private readonly struct SessionStatus

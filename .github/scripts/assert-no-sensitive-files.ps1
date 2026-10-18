@@ -28,7 +28,12 @@ $blockedPatterns = @(
     '(?i)(^|/)credentials(?:\.secure)?\.json$',
     '(?i)(^|/)(?:cloud|webdav)\.secret\.json$',
     '(?i)(^|/)[^/]*(?:cookie|token)[^/]*\.json$',
-    '(?i)(^|/)backups/'
+    '(?i)(^|/)backups/',
+    '(?i)(^|/)maFiles/(?!README\.txt$)',
+    '(?i)(^|/)device-(?:registry|identity)[^/]*\.json$',
+    '(?i)(^|/)\.env(?:\..*)?$',
+    '(?i)\.(?:dpapi|pfx|p12|key|pdb|trx|log|user|suo)$',
+    '(?i)(^|/)\.credentials-download-'
 )
 
 $violations = foreach ($file in $files) {
